@@ -1,0 +1,7 @@
+build
+!.vscode/*
+spotify_tokens.txt
+*.env
+.claude
+/.venv
+*.pyc
