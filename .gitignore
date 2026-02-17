@@ -5,3 +5,4 @@ spotify_tokens.txt
 .claude
 /.venv
 *.pyc
+wifi_config.cmake

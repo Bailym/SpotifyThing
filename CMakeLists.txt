@@ -33,11 +33,14 @@ project(SpotifyThing C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-# Add drivers subdirectory
+# Load WiFi credentials
+include(wifi_config.cmake)
+
+# Add subdirectories
 add_subdirectory(drivers)
+add_subdirectory(http_client)
 
 # Add executable. Default name is the project name, version 0.1
-
 add_executable(SpotifyThing
     main.c
 )
@@ -45,23 +48,31 @@ add_executable(SpotifyThing
 pico_set_program_name(SpotifyThing "SpotifyThing")
 pico_set_program_version(SpotifyThing "0.1")
 
+# Pass WiFi credentials to C code as preprocessor defines
+target_compile_definitions(SpotifyThing PRIVATE
+        WIFI_SSID=\"${WIFI_SSID}\"
+        WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
+        )
+
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(SpotifyThing 1)
-pico_enable_stdio_usb(SpotifyThing 0)
+pico_enable_stdio_uart(SpotifyThing 0)
+pico_enable_stdio_usb(SpotifyThing 1)
 
 # Add the standard library to the build
 target_link_libraries(SpotifyThing
         pico_stdlib
-        pico_cyw43_arch_none
+        pico_cyw43_arch_lwip_threadsafe_background
         hardware_i2c
         hardware_gpio
         ssh1106
+        example_lwip_http_util
     )
 
 # Add the standard include files to the build
 target_include_directories(SpotifyThing PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/drivers/display
+        ${CMAKE_CURRENT_LIST_DIR}/http_client
 )
 
 # Add any user requested libraries
