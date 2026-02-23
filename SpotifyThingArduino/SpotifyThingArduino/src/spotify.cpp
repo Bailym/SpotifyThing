@@ -14,8 +14,6 @@ static constexpr int HTTP_UNAUTHORIZED = 401;
 
 static constexpr const char* b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-// ----------------------------------------------------------------------------
-
 SpotifyClient::SpotifyClient() : _accessToken(SPOTIFY_ACCESS_TOKEN) {}
 
 String SpotifyClient::base64Encode(const String& input) {

@@ -57,8 +57,6 @@ Put the Pico W into BOOTSEL mode (hold BOOTSEL while plugging in USB), then run 
 ## Possible Future Features
 
 **Quick wins**
-- **Pause indicator** — `is_playing` is already in the API response; show a `[paused]` tag or dim the display when the track is paused
-- **Progress bar** — `progress_ms` and `duration_ms` are in the API response; draw a thin bar across the bottom of the screen that advances each poll
 - **Time/date when idle** — switch to a clock after N minutes of nothing playing; the earlephilhower core supports NTP natively via `WiFiUDP`
 - **WiFi reconnection** — if WiFi drops the device is currently stuck; check `WiFi.status()` in `loop()` and attempt reconnection
 

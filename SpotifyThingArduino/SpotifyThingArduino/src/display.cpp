@@ -2,14 +2,13 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 
-// Pin configuration
 static constexpr uint8_t SDA_PIN = 16;
 static constexpr uint8_t SCL_PIN = 17;
 
-// Display layout
 static constexpr int DISPLAY_WIDTH   = 128;
-static constexpr int ARTIST_Y        = 12;
-static constexpr int TRACK_Y         = 28;
+static constexpr int LINE1_Y        = 12;
+static constexpr int LINE2_Y         = 28;
+static constexpr uint8_t LINE_COUNT  = 2;
 static constexpr int PROGRESS_BAR_Y  = 61;
 static constexpr int PROGRESS_BAR_H  = 3;
 static constexpr int PAUSE_ICON_X1   = 119;
@@ -17,14 +16,11 @@ static constexpr int PAUSE_ICON_X2   = 124;
 static constexpr int PAUSE_ICON_Y    = 3;
 static constexpr int PAUSE_ICON_W    = 3;
 static constexpr int PAUSE_ICON_H    = 8;
-static constexpr uint8_t LINE_COUNT  = 2;
 
-// Timing
 static constexpr unsigned int SCROLL_SPEED_MS    = 40;
 static constexpr int          SCROLL_PAUSE        = 60;
 static constexpr unsigned int PROGRESS_UPDATE_MS  = 500;
 
-// Contrast
 static constexpr uint8_t CONTRAST_PLAYING = 200;
 static constexpr uint8_t CONTRAST_PAUSED  = 30;
 
@@ -44,8 +40,6 @@ static uint32_t      durationMs        = 0;
 static unsigned long progressUpdatedAt = 0;
 static unsigned long lastScrollMs      = 0;
 
-// ----------------------------------------------------------------------------
-
 static uint32_t estimatedProgress() {
   uint32_t estimated = progressMs;
   if (isPlaying) estimated += static_cast<uint32_t>(millis() - progressUpdatedAt);
@@ -63,9 +57,9 @@ static void redraw() {
   display.clearBuffer();
 
   if (lines[0].text.length() > 0)
-    display.drawStr(lines[0].offset, ARTIST_Y, lines[0].text.c_str());
+    display.drawStr(lines[0].offset, LINE1_Y, lines[0].text.c_str());
   if (lines[1].text.length() > 0)
-    display.drawStr(lines[1].offset, TRACK_Y, lines[1].text.c_str());
+    display.drawStr(lines[1].offset, LINE2_Y, lines[1].text.c_str());
 
   if (!isPlaying) {
     display.drawBox(PAUSE_ICON_X1, PAUSE_ICON_Y, PAUSE_ICON_W, PAUSE_ICON_H);
@@ -123,8 +117,6 @@ static bool tickProgress() {
   lastMs = now;
   return true;
 }
-
-// ----------------------------------------------------------------------------
 
 void displayInit() {
   Wire.setSDA(SDA_PIN);
