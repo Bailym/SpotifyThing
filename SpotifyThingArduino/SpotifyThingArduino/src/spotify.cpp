@@ -87,8 +87,10 @@ void SpotifyClient::fetchNowPlaying() {
   if (httpCode == 200) {
     JsonDocument filter;
     filter["is_playing"] = true;
+    filter["progress_ms"] = true;
     filter["item"]["id"] = true;
     filter["item"]["name"] = true;
+    filter["item"]["duration_ms"] = true;
     filter["item"]["artists"][0]["name"] = true;
 
     JsonDocument doc;
@@ -101,6 +103,7 @@ void SpotifyClient::fetchNowPlaying() {
     }
 
     displaySetPlaying(doc["is_playing"].as<bool>());
+    displaySetProgress(doc["progress_ms"].as<uint32_t>(), doc["item"]["duration_ms"].as<uint32_t>());
 
     const char* trackId = doc["item"]["id"];
     if (trackId && _lastTrackId == trackId) return;
