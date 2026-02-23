@@ -6,3 +6,4 @@ spotify_tokens.txt
 /.venv
 *.pyc
 wifi_config.cmake
+spotify_config.cmake
