@@ -2,9 +2,11 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 
-static const int DISPLAY_WIDTH   = 128;
-static const int SCROLL_SPEED_MS = 40;
-static const int SCROLL_PAUSE    = 60;
+static const int DISPLAY_WIDTH    = 128;
+static const int SCROLL_SPEED_MS  = 40;
+static const int SCROLL_PAUSE     = 60;
+static const int CONTRAST_PLAYING = 200;
+static const int CONTRAST_PAUSED  = 30;
 
 static U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R2, U8X8_PIN_NONE);
 
@@ -17,6 +19,7 @@ struct LineState {
 
 static LineState lines[2];
 static unsigned long lastScrollMs = 0;
+static bool isPlaying = true;
 
 static void redraw() {
   display.clearBuffer();
@@ -24,6 +27,10 @@ static void redraw() {
     display.drawStr(lines[0].offset, 12, lines[0].text.c_str());
   if (lines[1].text.length() > 0)
     display.drawStr(lines[1].offset, 28, lines[1].text.c_str());
+  if (!isPlaying) {
+    display.drawBox(119, 3, 3, 8);
+    display.drawBox(124, 3, 3, 8);
+  }
   display.sendBuffer();
 }
 
@@ -46,6 +53,13 @@ void displayMessage(const char* line1, const char* line2) {
   lines[1].pauseTimer = SCROLL_PAUSE;
   lines[1].atEnd      = false;
 
+  redraw();
+}
+
+void displaySetPlaying(bool playing) {
+  if (playing == isPlaying) return;
+  isPlaying = playing;
+  display.setContrast(playing ? CONTRAST_PLAYING : CONTRAST_PAUSED);
   redraw();
 }
 

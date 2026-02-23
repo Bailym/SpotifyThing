@@ -54,6 +54,24 @@ Client ID and secret are found in the [Spotify Developer Dashboard](https://deve
 
 Put the Pico W into BOOTSEL mode (hold BOOTSEL while plugging in USB), then run the PlatformIO upload task. The `upload_port` in `platformio.ini` may need updating to match the drive letter assigned by Windows.
 
+## Possible Future Features
+
+**Quick wins**
+- **Pause indicator** — `is_playing` is already in the API response; show a `[paused]` tag or dim the display when the track is paused
+- **Progress bar** — `progress_ms` and `duration_ms` are in the API response; draw a thin bar across the bottom of the screen that advances each poll
+- **Time/date when idle** — switch to a clock after N minutes of nothing playing; the earlephilhower core supports NTP natively via `WiFiUDP`
+- **WiFi reconnection** — if WiFi drops the device is currently stuck; check `WiFi.status()` in `loop()` and attempt reconnection
+
+**Medium effort**
+- **Physical buttons** — skip next/previous and play/pause via `POST /v1/me/player/next`, `/previous`, `/play`, `/pause`; plenty of GPIO available
+- **Display brightness scheduling** — `display.setContrast()` (U8g2) combined with NTP time to dim the screen at night
+- **Album name** — rotate between artist, album, and track on a timer using the existing scroll infrastructure; requires adding `item.album.name` to the JSON filter
+
+**More involved**
+- **Rotary encoder for volume** — wire an EC11 encoder to two GPIO pins, read it in `loop()`, call `PUT /v1/me/player/volume`
+- **Screensaver** — blank the screen after inactivity with `display.setPowerSave(1)` (U8g2) and wake on track change
+- **OTA firmware updates** — the earlephilhower core has built-in `ArduinoOTA` support for flashing over WiFi
+
 ## Display Scroll Behaviour
 
 Controlled by constants at the top of `display.cpp`:

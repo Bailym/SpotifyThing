@@ -86,6 +86,7 @@ void SpotifyClient::fetchNowPlaying() {
 
   if (httpCode == 200) {
     JsonDocument filter;
+    filter["is_playing"] = true;
     filter["item"]["id"] = true;
     filter["item"]["name"] = true;
     filter["item"]["artists"][0]["name"] = true;
@@ -98,6 +99,8 @@ void SpotifyClient::fetchNowPlaying() {
       displayMessage("Parse error");
       return;
     }
+
+    displaySetPlaying(doc["is_playing"].as<bool>());
 
     const char* trackId = doc["item"]["id"];
     if (trackId && _lastTrackId == trackId) return;
