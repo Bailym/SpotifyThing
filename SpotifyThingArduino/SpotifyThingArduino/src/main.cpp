@@ -3,13 +3,14 @@
 #include "wifi_manager.h"
 #include "spotify.h"
 
-static const unsigned long FETCH_INTERVAL_MS = 10000;
+static const unsigned long FETCH_INTERVAL_MS = 3000;
 
 SpotifyClient spotify;
 
 void setup() {
   displayInit();
   wifiConnect();
+  displayMessage("Nothing playing...");
   spotify.fetchNowPlaying();
 }
 

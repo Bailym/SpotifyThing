@@ -8,6 +8,7 @@ public:
 
 private:
   String _accessToken;
+  String _lastTrackId;
   bool refreshAccessToken();
   static String base64Encode(const String& input);
 };

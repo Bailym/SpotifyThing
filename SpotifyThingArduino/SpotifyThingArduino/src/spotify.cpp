@@ -86,6 +86,7 @@ void SpotifyClient::fetchNowPlaying() {
 
   if (httpCode == 200) {
     JsonDocument filter;
+    filter["item"]["id"] = true;
     filter["item"]["name"] = true;
     filter["item"]["artists"][0]["name"] = true;
 
@@ -98,6 +99,10 @@ void SpotifyClient::fetchNowPlaying() {
       return;
     }
 
+    const char* trackId = doc["item"]["id"];
+    if (trackId && _lastTrackId == trackId) return;
+    _lastTrackId = trackId ? trackId : "";
+
     const char* artist = doc["item"]["artists"][0]["name"];
     const char* track  = doc["item"]["name"];
 
@@ -105,7 +110,7 @@ void SpotifyClient::fetchNowPlaying() {
 
   } else if (httpCode == 204) {
     https.end();
-    displayMessage("Nothing playing");
+    _lastTrackId = "";
   } else {
     https.end();
     displayMessage("Spotify error", String(httpCode).c_str());
