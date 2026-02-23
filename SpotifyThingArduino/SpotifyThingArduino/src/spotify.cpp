@@ -5,7 +5,16 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-static const char b64chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static constexpr const char* CURRENTLY_PLAYING_URL = "https://api.spotify.com/v1/me/player/currently-playing";
+static constexpr const char* TOKEN_URL              = "https://accounts.spotify.com/api/token";
+
+static constexpr int HTTP_OK           = 200;
+static constexpr int HTTP_NO_CONTENT   = 204;
+static constexpr int HTTP_UNAUTHORIZED = 401;
+
+static constexpr const char* b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+// ----------------------------------------------------------------------------
 
 SpotifyClient::SpotifyClient() : _accessToken(SPOTIFY_ACCESS_TOKEN) {}
 
@@ -43,19 +52,19 @@ bool SpotifyClient::refreshAccessToken() {
   client.setInsecure();
 
   HTTPClient https;
-  https.begin(client, "https://accounts.spotify.com/api/token");
+  https.begin(client, TOKEN_URL);
   https.addHeader("Content-Type", "application/x-www-form-urlencoded");
   https.addHeader("Authorization", "Basic " + base64Encode(String(SPOTIFY_CLIENT_ID) + ":" + SPOTIFY_CLIENT_SECRET));
 
-  int httpCode = https.POST("grant_type=refresh_token&refresh_token=" SPOTIFY_REFRESH_TOKEN);
+  const int httpCode = https.POST("grant_type=refresh_token&refresh_token=" SPOTIFY_REFRESH_TOKEN);
 
-  if (httpCode != 200) {
+  if (httpCode != HTTP_OK) {
     https.end();
     return false;
   }
 
   JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, https.getStream());
+  const DeserializationError error = deserializeJson(doc, https.getStream());
   https.end();
 
   if (error) return false;
@@ -69,12 +78,12 @@ void SpotifyClient::fetchNowPlaying() {
   client.setInsecure();
 
   HTTPClient https;
-  https.begin(client, "https://api.spotify.com/v1/me/player/currently-playing");
+  https.begin(client, CURRENTLY_PLAYING_URL);
   https.addHeader("Authorization", "Bearer " + _accessToken);
 
-  int httpCode = https.GET();
+  const int httpCode = https.GET();
 
-  if (httpCode == 401) {
+  if (httpCode == HTTP_UNAUTHORIZED) {
     https.end();
     if (refreshAccessToken()) {
       fetchNowPlaying();
@@ -84,17 +93,17 @@ void SpotifyClient::fetchNowPlaying() {
     return;
   }
 
-  if (httpCode == 200) {
+  if (httpCode == HTTP_OK) {
     JsonDocument filter;
-    filter["is_playing"] = true;
-    filter["progress_ms"] = true;
-    filter["item"]["id"] = true;
-    filter["item"]["name"] = true;
+    filter["is_playing"]          = true;
+    filter["progress_ms"]         = true;
+    filter["item"]["id"]          = true;
+    filter["item"]["name"]        = true;
     filter["item"]["duration_ms"] = true;
     filter["item"]["artists"][0]["name"] = true;
 
     JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, https.getStream(), DeserializationOption::Filter(filter));
+    const DeserializationError error = deserializeJson(doc, https.getStream(), DeserializationOption::Filter(filter));
     https.end();
 
     if (error) {
@@ -111,10 +120,9 @@ void SpotifyClient::fetchNowPlaying() {
 
     const char* artist = doc["item"]["artists"][0]["name"];
     const char* track  = doc["item"]["name"];
-
     displayMessage(artist ? artist : "Unknown artist", track ? track : "Unknown track");
 
-  } else if (httpCode == 204) {
+  } else if (httpCode == HTTP_NO_CONTENT) {
     https.end();
     _lastTrackId = "";
   } else {
