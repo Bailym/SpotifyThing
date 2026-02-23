@@ -1,6 +1,7 @@
 #include "display.h"
 #include <U8g2lib.h>
 #include <Wire.h>
+#include <time.h>
 
 static constexpr uint8_t SDA_PIN = 16;
 static constexpr uint8_t SCL_PIN = 17;
@@ -20,6 +21,7 @@ static constexpr int PAUSE_ICON_H    = 8;
 static constexpr unsigned int SCROLL_SPEED_MS    = 40;
 static constexpr int          SCROLL_PAUSE        = 60;
 static constexpr unsigned int PROGRESS_UPDATE_MS  = 500;
+static constexpr unsigned int CLOCK_UPDATE_MS     = 30000;
 
 static constexpr uint8_t CONTRAST_PLAYING = 200;
 static constexpr uint8_t CONTRAST_PAUSED  = 30;
@@ -39,6 +41,7 @@ static uint32_t      progressMs        = 0;
 static uint32_t      durationMs        = 0;
 static unsigned long progressUpdatedAt = 0;
 static unsigned long lastScrollMs      = 0;
+static bool          clockMode         = false;
 
 static uint32_t estimatedProgress() {
   uint32_t estimated = progressMs;
@@ -53,23 +56,39 @@ static void resetLine(LineState& line, const char* text) {
   line.atEnd      = false;
 }
 
+static void drawClock() {
+  time_t now = time(nullptr);
+  struct tm* t = localtime(&now);
+  char buf[6];
+  snprintf(buf, sizeof(buf), "%02d:%02d", t->tm_hour, t->tm_min);
+
+  display.setFont(u8g2_font_helvB18_tr);
+  int w = display.getStrWidth(buf);
+  display.drawStr((DISPLAY_WIDTH - w) / 2, 40, buf);
+  display.setFont(u8g2_font_helvB08_tr);
+}
+
 static void redraw() {
   display.clearBuffer();
 
-  if (lines[0].text.length() > 0)
-    display.drawStr(lines[0].offset, LINE1_Y, lines[0].text.c_str());
-  if (lines[1].text.length() > 0)
-    display.drawStr(lines[1].offset, LINE2_Y, lines[1].text.c_str());
+  if (clockMode) {
+    drawClock();
+  } else {
+    if (lines[0].text.length() > 0)
+      display.drawStr(lines[0].offset, LINE1_Y, lines[0].text.c_str());
+    if (lines[1].text.length() > 0)
+      display.drawStr(lines[1].offset, LINE2_Y, lines[1].text.c_str());
 
-  if (!isPlaying) {
-    display.drawBox(PAUSE_ICON_X1, PAUSE_ICON_Y, PAUSE_ICON_W, PAUSE_ICON_H);
-    display.drawBox(PAUSE_ICON_X2, PAUSE_ICON_Y, PAUSE_ICON_W, PAUSE_ICON_H);
-  }
+    if (!isPlaying) {
+      display.drawBox(PAUSE_ICON_X1, PAUSE_ICON_Y, PAUSE_ICON_W, PAUSE_ICON_H);
+      display.drawBox(PAUSE_ICON_X2, PAUSE_ICON_Y, PAUSE_ICON_W, PAUSE_ICON_H);
+    }
 
-  if (durationMs > 0) {
-    int filled = static_cast<int>(DISPLAY_WIDTH * static_cast<long>(estimatedProgress()) / durationMs);
-    display.drawFrame(0, PROGRESS_BAR_Y, DISPLAY_WIDTH, PROGRESS_BAR_H);
-    if (filled > 0) display.drawBox(0, PROGRESS_BAR_Y, filled, PROGRESS_BAR_H);
+    if (durationMs > 0) {
+      int filled = static_cast<int>(DISPLAY_WIDTH * static_cast<long>(estimatedProgress()) / durationMs);
+      display.drawFrame(0, PROGRESS_BAR_Y, DISPLAY_WIDTH, PROGRESS_BAR_H);
+      if (filled > 0) display.drawBox(0, PROGRESS_BAR_Y, filled, PROGRESS_BAR_H);
+    }
   }
 
   display.sendBuffer();
@@ -118,6 +137,15 @@ static bool tickProgress() {
   return true;
 }
 
+static bool tickClock() {
+  if (!clockMode) return false;
+  static unsigned long lastMs = 0;
+  const unsigned long now = millis();
+  if (now - lastMs < CLOCK_UPDATE_MS) return false;
+  lastMs = now;
+  return true;
+}
+
 void displayInit() {
   Wire.setSDA(SDA_PIN);
   Wire.setSCL(SCL_PIN);
@@ -126,7 +154,15 @@ void displayInit() {
   display.setFont(u8g2_font_helvB08_tr);
 }
 
+void displayEnterClockMode() {
+  clockMode = true;
+  display.setContrast(CONTRAST_PAUSED);
+  redraw();
+}
+
 void displayMessage(const char* line1, const char* line2) {
+  clockMode = false;
+  display.setContrast(isPlaying ? CONTRAST_PLAYING : CONTRAST_PAUSED);
   resetLine(lines[0], line1);
   resetLine(lines[1], line2);
   redraw();
@@ -155,6 +191,7 @@ void displayTick() {
   }
 
   changed |= tickProgress();
+  changed |= tickClock();
 
   if (changed) redraw();
 }

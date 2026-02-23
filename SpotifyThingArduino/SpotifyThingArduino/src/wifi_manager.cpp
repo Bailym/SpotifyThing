@@ -2,6 +2,9 @@
 #include "display.h"
 #include "secrets.h"
 #include <WiFi.h>
+#include <time.h>
+
+static constexpr long GMT_OFFSET_SEC = 0;
 
 static constexpr unsigned long CONNECT_TIMEOUT_MS   = 30000;
 static constexpr unsigned int  CONNECT_CHECK_MS      = 500;
@@ -22,6 +25,7 @@ void wifiConnect() {
   }
 
   WiFi.noLowPowerMode();
+  configTime(5000, GMT_OFFSET_SEC, "pool.ntp.org", "time.nist.gov");
   displayMessage("Connected!");
   delay(CONNECTED_DISPLAY_MS);
 }

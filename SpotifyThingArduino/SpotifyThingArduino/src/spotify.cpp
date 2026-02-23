@@ -12,6 +12,8 @@ static constexpr int HTTP_OK           = 200;
 static constexpr int HTTP_NO_CONTENT   = 204;
 static constexpr int HTTP_UNAUTHORIZED = 401;
 
+static constexpr unsigned long IDLE_CLOCK_TIMEOUT_MS = 10UL * 60UL * 1000UL;
+
 static constexpr const char* b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 SpotifyClient::SpotifyClient() : _accessToken(SPOTIFY_ACCESS_TOKEN) {}
@@ -109,6 +111,7 @@ void SpotifyClient::fetchNowPlaying() {
       return;
     }
 
+    _idleSince = 0;
     displaySetPlaying(doc["is_playing"].as<bool>());
     displaySetProgress(doc["progress_ms"].as<uint32_t>(), doc["item"]["duration_ms"].as<uint32_t>());
 
@@ -123,6 +126,8 @@ void SpotifyClient::fetchNowPlaying() {
   } else if (httpCode == HTTP_NO_CONTENT) {
     https.end();
     _lastTrackId = "";
+    if (_idleSince == 0) _idleSince = millis();
+    if (millis() - _idleSince >= IDLE_CLOCK_TIMEOUT_MS) displayEnterClockMode();
   } else {
     https.end();
     displayMessage("Spotify error", String(httpCode).c_str());
