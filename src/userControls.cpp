@@ -2,7 +2,7 @@
 #include "spotify.h"
 #include "Arduino.h"
 
-extern SpotifyClient spotify;
+extern SpotifyClient spotifyClient;
 
 extern "C"
 {
@@ -49,7 +49,7 @@ static void onSwitchPressed()
 
 static void onDoubleSwitchPressed()
 {
-    spotify.skipTrack();
+    spotifyClient.skipTrack();
 }
 
 static void onEncoderPulsed(tEncoderDirection direction)
@@ -80,7 +80,7 @@ void userControlsTick()
         if (pendingPresses >= 2)
             onDoubleSwitchPressed();
         else
-            spotify.togglePlayPause();
+            spotifyClient.togglePlayPause();
 
         pendingPresses = 0;
     }
