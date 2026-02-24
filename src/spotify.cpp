@@ -51,11 +51,11 @@ String SpotifyClient::base64Encode(const String& input) {
 }
 
 bool SpotifyClient::refreshAccessToken() {
-  WiFiClientSecure client;
-  client.setInsecure();
+  WiFiClientSecure wifiClient;
+  wifiClient.setInsecure();
 
   HTTPClient https;
-  https.begin(client, TOKEN_URL);
+  https.begin(wifiClient, TOKEN_URL);
   https.addHeader("Content-Type", "application/x-www-form-urlencoded");
   https.addHeader("Authorization", "Basic " + base64Encode(String(SPOTIFY_CLIENT_ID) + ":" + SPOTIFY_CLIENT_SECRET));
 
@@ -66,26 +66,26 @@ bool SpotifyClient::refreshAccessToken() {
     return false;
   }
 
-  JsonDocument doc;
-  const DeserializationError error = deserializeJson(doc, https.getStream());
+  JsonDocument response_json;
+  const DeserializationError error = deserializeJson(response_json, https.getStream());
   https.end();
 
   if (error) return false;
 
-  _accessToken = doc["access_token"].as<String>();
+  _accessToken = response_json["access_token"].as<String>();
   return true;
 }
 
 void SpotifyClient::togglePlayPause() {
   fetchNowPlaying();
 
-  WiFiClientSecure client;
-  client.setInsecure();
-  client.setTimeout(5000);
+  WiFiClientSecure wifiClient;
+  wifiClient.setInsecure();
+  wifiClient.setTimeout(5000);
 
   auto doRequest = [&]() {
     HTTPClient https;
-    https.begin(client, _isPlaying ? PAUSE_URL : PLAY_URL);
+    https.begin(wifiClient, _isPlaying ? PAUSE_URL : PLAY_URL);
     https.addHeader("Authorization", "Bearer " + _accessToken);
     const int code = https.PUT("");
     https.end();
@@ -154,8 +154,8 @@ void SpotifyClient::fetchNowPlaying() {
     filter["item"]["duration_ms"] = true;
     filter["item"]["artists"][0]["name"] = true;
 
-    JsonDocument doc;
-    const DeserializationError error = deserializeJson(doc, https.getStream(), DeserializationOption::Filter(filter));
+    JsonDocument jsonResponse;
+    const DeserializationError error = deserializeJson(jsonResponse, https.getStream(), DeserializationOption::Filter(filter));
     https.end();
 
     if (error) {
@@ -164,16 +164,16 @@ void SpotifyClient::fetchNowPlaying() {
     }
 
     _idleSince = 0;
-    _isPlaying = doc["is_playing"].as<bool>();
+    _isPlaying = jsonResponse["is_playing"].as<bool>();
     displaySetPlaying(_isPlaying);
-    displaySetProgress(doc["progress_ms"].as<uint32_t>(), doc["item"]["duration_ms"].as<uint32_t>());
+    displaySetProgress(jsonResponse["progress_ms"].as<uint32_t>(), jsonResponse["item"]["duration_ms"].as<uint32_t>());
 
-    const char* trackId = doc["item"]["id"];
+    const char* trackId = jsonResponse["item"]["id"];
     if (trackId && _lastTrackId == trackId) return;
     _lastTrackId = trackId ? trackId : "";
 
-    const char* artist = doc["item"]["artists"][0]["name"];
-    const char* track  = doc["item"]["name"];
+    const char* artist = jsonResponse["item"]["artists"][0]["name"];
+    const char* track  = jsonResponse["item"]["name"];
     displayMessage(artist ? artist : "Unknown artist", track ? track : "Unknown track");
 
   } else if (httpCode == HTTP_NO_CONTENT) {
