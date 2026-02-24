@@ -8,6 +8,10 @@ A Raspberry Pi Pico W project that displays the currently playing Spotify track 
 - **Display:** SH1106 128x64 OLED (I2C, address 0x3C)
   - SDA: GP16
   - SCL: GP17
+- **Encoder:** KY-040 rotary encoder
+  - CLK: GP20
+  - DT: GP19
+  - SW: GP18
 
 ## Platform
 
@@ -19,11 +23,14 @@ A Raspberry Pi Pico W project that displays the currently playing Spotify track 
 
 ```
 src/
-├── main.cpp          # setup() and loop() only
-├── display.h/cpp     # SH1106 init, message rendering, scroll logic
-├── wifi_manager.h/cpp # WiFi connection
-├── spotify.h/cpp     # Spotify API client (fetch, token refresh)
-└── secrets.h         # Credentials (gitignored — copy from secrets.h.example)
+├── main.cpp              # setup() and loop() only
+├── display.h/cpp         # SH1106 init, message rendering, scroll logic
+├── wifi_manager.h/cpp    # WiFi connection
+├── spotify.h/cpp         # Spotify API client (fetch, token refresh, play/pause, skip)
+├── userControls.h/cpp    # Encoder input, button gesture detection (single/double press)
+└── secrets.h             # Credentials (gitignored — copy from secrets.h.example)
+lib/
+└── ky-040/               # KY-040 encoder driver (polling via repeating timer)
 ```
 
 ## Features
@@ -34,6 +41,9 @@ src/
 - Retains the last track on screen when nothing is playing
 - Automatically refreshes the Spotify access token on 401 responses
 - Horizontal scrolling for artist/track names that exceed the display width, with configurable pause at each end
+- Encoder button single press: toggle play/pause (fetches current state first to avoid stale toggle)
+- Encoder button double press: skip to next track (display updates immediately after skip)
+- Button debouncing (50ms) and deferred dispatch (500ms window) to distinguish single from double press
 
 ## Secrets Setup
 
@@ -57,16 +67,16 @@ Put the Pico W into BOOTSEL mode (hold BOOTSEL while plugging in USB), then run 
 ## Possible Future Features
 
 **Quick wins**
-- **Time/date when idle** — switch to a clock after N minutes of nothing playing; the earlephilhower core supports NTP natively via `WiFiUDP`
 - **WiFi reconnection** — if WiFi drops the device is currently stuck; check `WiFi.status()` in `loop()` and attempt reconnection
+- **Skip previous** — add a triple-press or long-press gesture to call `POST /v1/me/player/previous`; the double-press detection pattern in `userControls.cpp` can be extended
 
 **Medium effort**
-- **Physical buttons** — skip next/previous and play/pause via `POST /v1/me/player/next`, `/previous`, `/play`, `/pause`; plenty of GPIO available
+- **Volume control** — encoder rotation already wired; call `PUT /v1/me/player/volume` with a clamped 0–100 value on each clockwise/counterclockwise pulse
 - **Display brightness scheduling** — `display.setContrast()` (U8g2) combined with NTP time to dim the screen at night
 - **Album name** — rotate between artist, album, and track on a timer using the existing scroll infrastructure; requires adding `item.album.name` to the JSON filter
+- **Middleware server** — offload OAuth token management and Spotify API calls to a hosted server; Pico calls one simple endpoint and gets back artist/track, removing the client secret from the firmware
 
 **More involved**
-- **Rotary encoder for volume** — wire an EC11 encoder to two GPIO pins, read it in `loop()`, call `PUT /v1/me/player/volume`
 - **Screensaver** — blank the screen after inactivity with `display.setPowerSave(1)` (U8g2) and wake on track change
 - **OTA firmware updates** — the earlephilhower core has built-in `ArduinoOTA` support for flashing over WiFi
 
