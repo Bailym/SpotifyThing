@@ -49,6 +49,7 @@ static void onSwitchPressed()
 
 static void onDoubleSwitchPressed()
 {
+    spotify.skipTrack();
 }
 
 static void onEncoderPulsed(tEncoderDirection direction)

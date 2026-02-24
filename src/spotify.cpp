@@ -9,6 +9,7 @@ static constexpr const char* CURRENTLY_PLAYING_URL = "https://api.spotify.com/v1
 static constexpr const char* TOKEN_URL              = "https://accounts.spotify.com/api/token";
 static constexpr const char* PAUSE_URL              = "https://api.spotify.com/v1/me/player/pause";
 static constexpr const char* PLAY_URL               = "https://api.spotify.com/v1/me/player/play";
+static constexpr const char* NEXT_URL               = "https://api.spotify.com/v1/me/player/next";
 
 static constexpr int HTTP_OK           = 200;
 static constexpr int HTTP_NO_CONTENT   = 204;
@@ -101,6 +102,22 @@ void SpotifyClient::togglePlayPause() {
   if (httpCode == HTTP_NO_CONTENT || httpCode == HTTP_OK) {
     _isPlaying = !_isPlaying;
     displaySetPlaying(_isPlaying);
+  }
+}
+
+void SpotifyClient::skipTrack() {
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setTimeout(5000);
+
+  HTTPClient https;
+  https.begin(client, NEXT_URL);
+  https.addHeader("Authorization", "Bearer " + _accessToken);
+  const int httpCode = https.POST("");
+  https.end();
+
+  if (httpCode == HTTP_UNAUTHORIZED) {
+    if (refreshAccessToken()) skipTrack();
   }
 }
 

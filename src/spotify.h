@@ -6,6 +6,7 @@ public:
   SpotifyClient();
   void fetchNowPlaying();
   void togglePlayPause();
+  void skipTrack();
 
 private:
   String        _accessToken;
