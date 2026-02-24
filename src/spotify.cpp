@@ -118,7 +118,10 @@ void SpotifyClient::skipTrack() {
 
   if (httpCode == HTTP_UNAUTHORIZED) {
     if (refreshAccessToken()) skipTrack();
+    return;
   }
+
+  fetchNowPlaying();
 }
 
 void SpotifyClient::fetchNowPlaying(bool retry) {
