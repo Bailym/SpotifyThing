@@ -23,19 +23,23 @@ static int pendingPresses = 0;
 
 static void onClockwise()
 {
+    Serial.println("clockwise");
 }
 
 static void onCounterclockwise()
 {
+    Serial.println("counterclockwise");
 }
 
 static void onSwitchPressed()
 {
     const unsigned long now = millis();
+    const bool debounceTimerExpired = now - lastPressTime >= DEBOUNCE_MS;
+    if (!debounceTimerExpired) return;
 
-    if (now - lastPressTime < DEBOUNCE_MS) return;
-
-    if(pendingPresses > 0 && now - lastPressTime < DOUBLE_PRESS_MS)
+    const bool pressPending = pendingPresses > 0;
+    const bool pressWithinDoublePressWindow = now - lastPressTime < DOUBLE_PRESS_MS;
+    if(pressPending && pressWithinDoublePressWindow)
     {
         pendingPresses++;
     }
@@ -75,13 +79,19 @@ void userControlsTick()
 {
     Encoder_Task();
 
-    if (pendingPresses > 0 && millis() - lastPressTime >= DOUBLE_PRESS_MS)
+    const bool pressPending = pendingPresses > 0;
+    const bool doublePressWindowExpired = millis() - lastPressTime >= DOUBLE_PRESS_MS;
+
+    if (pressPending && doublePressWindowExpired)
     {
         if (pendingPresses >= 2)
+        {
             onDoubleSwitchPressed();
+        }
         else
+        {
             spotifyClient.togglePlayPause();
-
+        }
         pendingPresses = 0;
     }
 }
