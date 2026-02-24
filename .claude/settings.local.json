@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_serena_serena__list_dir",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api:*)"
+    ]
+  }
+}
