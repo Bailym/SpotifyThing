@@ -15,7 +15,8 @@ static constexpr int HTTP_OK           = 200;
 static constexpr int HTTP_NO_CONTENT   = 204;
 static constexpr int HTTP_UNAUTHORIZED = 401;
 
-static constexpr unsigned long IDLE_CLOCK_TIMEOUT_MS = 10UL * 60UL * 1000UL;
+static constexpr unsigned long IDLE_CLOCK_TIMEOUT_MS    = 10UL * 60UL * 1000UL;
+static constexpr int           SPOTIFY_SKIP_PROPAGATION_MS = 600;
 
 static constexpr const char* b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -77,8 +78,6 @@ bool SpotifyClient::refreshAccessToken() {
 }
 
 void SpotifyClient::togglePlayPause() {
-  fetchNowPlaying();
-
   WiFiClientSecure wifiClient;
   wifiClient.setInsecure();
   wifiClient.setTimeout(5000);
@@ -121,6 +120,7 @@ void SpotifyClient::skipTrack() {
     return;
   }
 
+  delay(SPOTIFY_SKIP_PROPAGATION_MS);
   fetchNowPlaying();
 }
 
