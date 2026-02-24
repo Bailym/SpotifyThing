@@ -76,6 +76,8 @@ bool SpotifyClient::refreshAccessToken() {
 }
 
 void SpotifyClient::togglePlayPause() {
+  fetchNowPlaying();
+
   WiFiClientSecure client;
   client.setInsecure();
   client.setTimeout(5000);
@@ -96,7 +98,7 @@ void SpotifyClient::togglePlayPause() {
     httpCode = doRequest();
   }
 
-  if (httpCode == HTTP_NO_CONTENT) {
+  if (httpCode == HTTP_NO_CONTENT || httpCode == HTTP_OK) {
     _isPlaying = !_isPlaying;
     displaySetPlaying(_isPlaying);
   }

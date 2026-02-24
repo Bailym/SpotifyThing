@@ -9,19 +9,46 @@ extern "C"
 #include "ky-040.h"
 }
 
+static void onEncoderPulsed(tEncoderDirection direction);
+static void onSwitchPressed();
+static void onDoubleSwitchPressed();
+static void onClockwise();
+static void onCounterclockwise();
+
+static const int DOUBLE_PRESS_MS = 500;
+static const int DEBOUNCE_MS = 50;
+static unsigned long lastPressTime = 0;
+static int pendingPresses = 0;
+
+
 static void onClockwise()
 {
-    Serial.println("Clockwise");
 }
 
 static void onCounterclockwise()
 {
-    Serial.println("Counterclockwise");
 }
 
 static void onSwitchPressed()
 {
-    spotify.togglePlayPause();
+    const unsigned long now = millis();
+
+    if (now - lastPressTime < DEBOUNCE_MS) return;
+
+    if(pendingPresses > 0 && now - lastPressTime < DOUBLE_PRESS_MS)
+    {
+        pendingPresses++;
+    }
+    else
+    {
+        pendingPresses = 1;
+    }
+
+    lastPressTime = now;
+}
+
+static void onDoubleSwitchPressed()
+{
 }
 
 static void onEncoderPulsed(tEncoderDirection direction)
@@ -38,7 +65,6 @@ static void onEncoderPulsed(tEncoderDirection direction)
 
 void initDefaultControls()
 {
-    Serial.println("Initializing default controls");
     Encoder_Init();
     SetEncoderPulsedCallback(onEncoderPulsed);
     SetEncoderSwitchPressedCallback(onSwitchPressed);
@@ -47,6 +73,16 @@ void initDefaultControls()
 void userControlsTick()
 {
     Encoder_Task();
+
+    if (pendingPresses > 0 && millis() - lastPressTime >= DOUBLE_PRESS_MS)
+    {
+        if (pendingPresses >= 2)
+            onDoubleSwitchPressed();
+        else
+            spotify.togglePlayPause();
+
+        pendingPresses = 0;
+    }
 }
 
 void clearDefaultControls()
