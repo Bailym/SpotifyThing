@@ -4,7 +4,7 @@
 class SpotifyClient {
 public:
   SpotifyClient();
-  void fetchNowPlaying(bool retry = true);
+  void fetchNowPlaying();
   void togglePlayPause();
   void skipTrack();
 

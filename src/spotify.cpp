@@ -124,7 +124,7 @@ void SpotifyClient::skipTrack() {
   fetchNowPlaying();
 }
 
-void SpotifyClient::fetchNowPlaying(bool retry) {
+void SpotifyClient::fetchNowPlaying() {
   WiFiClientSecure client;
   client.setInsecure();
   client.setTimeout(5000);
@@ -181,9 +181,6 @@ void SpotifyClient::fetchNowPlaying(bool retry) {
     _lastTrackId = "";
     if (_idleSince == 0) _idleSince = millis();
     if (millis() - _idleSince >= IDLE_CLOCK_TIMEOUT_MS) displayEnterClockMode();
-  } else if (httpCode == -1 && retry) {
-    https.end();
-    fetchNowPlaying(false);
   } else {
     https.end();
     displayMessage("Spotify error", String(httpCode).c_str());
