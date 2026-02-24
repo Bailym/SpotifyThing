@@ -1,5 +1,8 @@
 #include "userControls.h"
+#include "spotify.h"
 #include "Arduino.h"
+
+extern SpotifyClient spotify;
 
 extern "C"
 {
@@ -18,7 +21,7 @@ static void onCounterclockwise()
 
 static void onSwitchPressed()
 {
-    Serial.println("Switch pressed");
+    spotify.togglePlayPause();
 }
 
 static void onEncoderPulsed(tEncoderDirection direction)

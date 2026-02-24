@@ -7,6 +7,8 @@
 
 static constexpr const char* CURRENTLY_PLAYING_URL = "https://api.spotify.com/v1/me/player/currently-playing";
 static constexpr const char* TOKEN_URL              = "https://accounts.spotify.com/api/token";
+static constexpr const char* PAUSE_URL              = "https://api.spotify.com/v1/me/player/pause";
+static constexpr const char* PLAY_URL               = "https://api.spotify.com/v1/me/player/play";
 
 static constexpr int HTTP_OK           = 200;
 static constexpr int HTTP_NO_CONTENT   = 204;
@@ -73,6 +75,33 @@ bool SpotifyClient::refreshAccessToken() {
   return true;
 }
 
+void SpotifyClient::togglePlayPause() {
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setTimeout(5000);
+
+  auto doRequest = [&]() {
+    HTTPClient https;
+    https.begin(client, _isPlaying ? PAUSE_URL : PLAY_URL);
+    https.addHeader("Authorization", "Bearer " + _accessToken);
+    const int code = https.PUT("");
+    https.end();
+    return code;
+  };
+
+  int httpCode = doRequest();
+
+  if (httpCode == HTTP_UNAUTHORIZED) {
+    if (!refreshAccessToken()) return;
+    httpCode = doRequest();
+  }
+
+  if (httpCode == HTTP_NO_CONTENT) {
+    _isPlaying = !_isPlaying;
+    displaySetPlaying(_isPlaying);
+  }
+}
+
 void SpotifyClient::fetchNowPlaying() {
   WiFiClientSecure client;
   client.setInsecure();
@@ -112,7 +141,8 @@ void SpotifyClient::fetchNowPlaying() {
     }
 
     _idleSince = 0;
-    displaySetPlaying(doc["is_playing"].as<bool>());
+    _isPlaying = doc["is_playing"].as<bool>();
+    displaySetPlaying(_isPlaying);
     displaySetProgress(doc["progress_ms"].as<uint32_t>(), doc["item"]["duration_ms"].as<uint32_t>());
 
     const char* trackId = doc["item"]["id"];

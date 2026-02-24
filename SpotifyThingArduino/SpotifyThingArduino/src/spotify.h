@@ -5,11 +5,13 @@ class SpotifyClient {
 public:
   SpotifyClient();
   void fetchNowPlaying();
+  void togglePlayPause();
 
 private:
   String        _accessToken;
   String        _lastTrackId;
   unsigned long _idleSince = 0;
+  bool          _isPlaying = false;
   bool refreshAccessToken();
   static String base64Encode(const String& input);
 };

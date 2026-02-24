@@ -18,7 +18,7 @@ load_dotenv()
 CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = "http://127.0.0.1:3000/callback"
-SCOPE = "user-read-currently-playing user-read-playback-state"
+SCOPE = "user-read-currently-playing user-read-playback-state user-modify-playback-state"
 # =====================================
 
 auth_code = None
