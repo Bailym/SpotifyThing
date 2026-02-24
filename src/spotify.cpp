@@ -105,6 +105,7 @@ void SpotifyClient::togglePlayPause() {
 void SpotifyClient::fetchNowPlaying() {
   WiFiClientSecure client;
   client.setInsecure();
+  client.setTimeout(5000);
 
   HTTPClient https;
   https.begin(client, CURRENTLY_PLAYING_URL);

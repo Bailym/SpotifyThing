@@ -5,10 +5,12 @@
 #include "userControls.h"
 
 static const unsigned long FETCH_INTERVAL_MS = 3000;
+static const int MAIN_LOOP_DELAY_MS = 10;
 
 SpotifyClient spotify;
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   initDefaultControls();
   displayInit();
@@ -17,16 +19,18 @@ void setup() {
   spotify.fetchNowPlaying();
 }
 
-void loop() {
+void loop()
+{
   static unsigned long lastFetch = 0;
 
   displayTick();
   userControlsTick();
 
-  if (millis() - lastFetch >= FETCH_INTERVAL_MS) {
+  if (millis() - lastFetch >= FETCH_INTERVAL_MS)
+  {
     lastFetch = millis();
     spotify.fetchNowPlaying();
   }
 
-  delay(10);
+  delay(MAIN_LOOP_DELAY_MS);
 }
