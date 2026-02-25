@@ -30,6 +30,7 @@ private:
     String        _lastTrackId;
     unsigned long _idleSince = 0;
     bool          _isPlaying = false;
+    unsigned long _rateLimitUntilMs = 0;
 
     volatile SpotifyCommand _pendingCommand;
     volatile bool           _commandPending = false;
@@ -39,8 +40,8 @@ private:
     mutex_t        _mutex;
 
     bool refreshAccessToken();
-    void _doFetch(bool retrying = false);
-    void _doToggle(bool retrying = false);
-    void _doSkip(bool retrying = false);
+    void _doFetch();
+    void _doToggle();
+    void _doSkip();
     static String base64Encode(const String& input);
 };

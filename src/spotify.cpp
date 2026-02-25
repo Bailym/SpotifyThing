@@ -99,6 +99,7 @@ void SpotifyClient::skipTrack() {
 
 void SpotifyClient::tickCore1() {
     if (!_commandPending) return;
+    if (millis() < _rateLimitUntilMs) return;
     SpotifyCommand command = _pendingCommand;
     _commandPending = false;
     Serial.println("doing command: " + String((int)command));
@@ -109,7 +110,7 @@ void SpotifyClient::tickCore1() {
     }
 }
 
-void SpotifyClient::_doFetch(bool retrying) {
+void SpotifyClient::_doFetch() {
     WiFiClientSecure client;
     client.setInsecure();
     client.setTimeout(5000);
@@ -125,7 +126,7 @@ void SpotifyClient::_doFetch(bool retrying) {
     if (httpCode == HTTP_UNAUTHORIZED) {
         https.end();
         if (refreshAccessToken()) {
-            _doFetch(retrying);
+            _doFetch();
         } else {
             SpotifyResult result{};
             result.type = SpotifyResult::Type::Error;
@@ -140,9 +141,16 @@ void SpotifyClient::_doFetch(bool retrying) {
 
     if (httpCode == HTTP_TOO_MANY_REQS) {
         const int wait = https.header("Retry-After").toInt();
+        Serial.println("[spotify] 429 rate limited, Retry-After: " + String(wait) + "s");
         https.end();
-        sleep_ms((wait > 0 ? wait : RATE_LIMIT_DEFAULT_S) * 1000UL);
-        if (!retrying) _doFetch(true);
+        SpotifyResult rl{};
+        rl.type = SpotifyResult::Type::Error;
+        strncpy(rl.message, "Rate limited", sizeof(rl.message) - 1);
+        mutex_enter_blocking(&_mutex);
+        _pendingResult = rl;
+        _resultReady = true;
+        mutex_exit(&_mutex);
+        _rateLimitUntilMs = millis() + (unsigned long)(wait > 0 ? wait : RATE_LIMIT_DEFAULT_S) * 1000UL;
         return;
     }
 
@@ -212,7 +220,7 @@ void SpotifyClient::_doFetch(bool retrying) {
     }
 }
 
-void SpotifyClient::_doToggle(bool retrying) {
+void SpotifyClient::_doToggle() {
     WiFiClientSecure wifiClient;
     wifiClient.setInsecure();
     wifiClient.setTimeout(5000);
@@ -241,8 +249,14 @@ void SpotifyClient::_doToggle(bool retrying) {
     }
 
     if (httpCode == HTTP_TOO_MANY_REQS) {
-        sleep_ms(retryAfterSec * 1000UL);
-        if (!retrying) _doToggle(true);
+        SpotifyResult rl{};
+        rl.type = SpotifyResult::Type::Error;
+        strncpy(rl.message, "Rate limited", sizeof(rl.message) - 1);
+        mutex_enter_blocking(&_mutex);
+        _pendingResult = rl;
+        _resultReady = true;
+        mutex_exit(&_mutex);
+        _rateLimitUntilMs = millis() + (unsigned long)retryAfterSec * 1000UL;
         return;
     }
 
@@ -258,7 +272,7 @@ void SpotifyClient::_doToggle(bool retrying) {
     }
 }
 
-void SpotifyClient::_doSkip(bool retrying) {
+void SpotifyClient::_doSkip() {
     WiFiClientSecure client;
     client.setInsecure();
     client.setTimeout(5000);
@@ -272,15 +286,21 @@ void SpotifyClient::_doSkip(bool retrying) {
 
     if (httpCode == HTTP_UNAUTHORIZED) {
         https.end();
-        if (refreshAccessToken()) _doSkip(retrying);
+        if (refreshAccessToken()) _doSkip();
         return;
     }
 
     if (httpCode == HTTP_TOO_MANY_REQS) {
         const int wait = https.header("Retry-After").toInt();
         https.end();
-        sleep_ms((wait > 0 ? wait : RATE_LIMIT_DEFAULT_S) * 1000UL);
-        if (!retrying) _doSkip(true);
+        SpotifyResult rl{};
+        rl.type = SpotifyResult::Type::Error;
+        strncpy(rl.message, "Rate limited", sizeof(rl.message) - 1);
+        mutex_enter_blocking(&_mutex);
+        _pendingResult = rl;
+        _resultReady = true;
+        mutex_exit(&_mutex);
+        _rateLimitUntilMs = millis() + (unsigned long)(wait > 0 ? wait : RATE_LIMIT_DEFAULT_S) * 1000UL;
         return;
     }
 
