@@ -45,6 +45,31 @@ lib/
 - Encoder button double press: skip to next track (display updates immediately after skip)
 - Button debouncing (50ms) and deferred dispatch (500ms window) to distinguish single from double press
 
+## Dual-Core Architecture
+
+All Spotify HTTP calls run on **Core 1**, leaving **Core 0** free to handle display scrolling and button input without interruption. A skip used to block Core 0 for ~2.6s; now Core 0 never blocks on network I/O.
+
+### Core responsibilities
+
+| Core 0 (`loop`) | Core 1 (`loop1`) |
+|---|---|
+| `displayTick()` | `spotifyClient.tickCore1()` |
+| `userControlsTick()` | Executes `_doFetch()`, `_doToggle()`, `_doSkip()` |
+| `spotifyClient.applyPendingResult()` | Writes results to `_pendingResult` under mutex |
+| Schedules fetch every 3 s via `requestFetch()` | Sleeps 600 ms for skip propagation (free on Core 1) |
+
+### Communication
+
+**Core 0 → Core 1 (command):** `volatile SpotifyCommand _pendingCommand` + `volatile bool _commandPending`. Core 0 sets these and returns immediately; Core 1 reads them in `tickCore1()`.
+
+**Core 1 → Core 0 (result):** `SpotifyResult _pendingResult` protected by `mutex_t _mutex` + `volatile bool _resultReady`. Core 1 locks the mutex, writes the result struct, sets the flag, and unlocks. Core 0 checks the flag in `applyPendingResult()`, locks, copies the struct, clears the flag, unlocks, then drives all display calls.
+
+### Key constraints
+
+- **WiFi must be initialised on Core 0** — `wifiConnect()` stays in `setup()`. HTTP requests made after init are safe from Core 1.
+- **`SpotifyResult` uses `char[]` buffers** (not `String`) to avoid heap allocation races across cores.
+- **Display functions are only ever called from Core 0** — Core 1 only writes data; Core 0 applies it.
+
 ## Secrets Setup
 
 Copy `src/secrets.h.example` to `src/secrets.h` and fill in your credentials:
