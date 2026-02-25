@@ -9,6 +9,7 @@ static const int MAIN_LOOP_DELAY_MS = 10;
 
 SpotifyClient spotifyClient;
 
+// Core 0 ------------------------------------------------------------------------------------------
 void setup()
 {
     Serial.begin(115200);
@@ -35,6 +36,8 @@ void loop()
 
     delay(MAIN_LOOP_DELAY_MS);
 }
+
+// Core 1 ------------------------------------------------------------------------------------------
 
 void setup1() { }
 

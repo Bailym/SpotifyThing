@@ -39,8 +39,8 @@ private:
     mutex_t        _mutex;
 
     bool refreshAccessToken();
-    void _doFetch();
-    void _doToggle();
-    void _doSkip();
+    void _doFetch(bool retrying = false);
+    void _doToggle(bool retrying = false);
+    void _doSkip(bool retrying = false);
     static String base64Encode(const String& input);
 };

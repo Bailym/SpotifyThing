@@ -11,9 +11,11 @@ static constexpr const char* PAUSE_URL              = "https://api.spotify.com/v
 static constexpr const char* PLAY_URL               = "https://api.spotify.com/v1/me/player/play";
 static constexpr const char* NEXT_URL               = "https://api.spotify.com/v1/me/player/next";
 
-static constexpr int HTTP_OK           = 200;
-static constexpr int HTTP_NO_CONTENT   = 204;
-static constexpr int HTTP_UNAUTHORIZED = 401;
+static constexpr int HTTP_OK              = 200;
+static constexpr int HTTP_NO_CONTENT      = 204;
+static constexpr int HTTP_UNAUTHORIZED    = 401;
+static constexpr int HTTP_TOO_MANY_REQS   = 429;
+static constexpr int RATE_LIMIT_DEFAULT_S = 30;
 
 static constexpr unsigned long IDLE_CLOCK_TIMEOUT_MS      = 10UL * 60UL * 1000UL;
 static constexpr int           SPOTIFY_SKIP_PROPAGATION_MS = 600;
@@ -97,16 +99,17 @@ void SpotifyClient::skipTrack() {
 
 void SpotifyClient::tickCore1() {
     if (!_commandPending) return;
-    SpotifyCommand cmd = _pendingCommand;
+    SpotifyCommand command = _pendingCommand;
     _commandPending = false;
-    switch (cmd) {
+    Serial.println("doing command: " + String((int)command));
+    switch (command) {
         case SpotifyCommand::Fetch:           _doFetch();  break;
         case SpotifyCommand::TogglePlayPause: _doToggle(); break;
         case SpotifyCommand::Skip:            _doSkip();   break;
     }
 }
 
-void SpotifyClient::_doFetch() {
+void SpotifyClient::_doFetch(bool retrying) {
     WiFiClientSecure client;
     client.setInsecure();
     client.setTimeout(5000);
@@ -114,22 +117,32 @@ void SpotifyClient::_doFetch() {
     HTTPClient https;
     https.begin(client, CURRENTLY_PLAYING_URL);
     https.addHeader("Authorization", "Bearer " + _accessToken);
+    const char* fetchHdrs[] = {"Retry-After"};
+    https.collectHeaders(fetchHdrs, 1);
 
     const int httpCode = https.GET();
 
     if (httpCode == HTTP_UNAUTHORIZED) {
         https.end();
         if (refreshAccessToken()) {
-            _doFetch();
+            _doFetch(retrying);
         } else {
-            SpotifyResult r{};
-            r.type = SpotifyResult::Type::Error;
-            strncpy(r.message, "Auth failed", sizeof(r.message) - 1);
+            SpotifyResult result{};
+            result.type = SpotifyResult::Type::Error;
+            strncpy(result.message, "Auth failed", sizeof(result.message) - 1);
             mutex_enter_blocking(&_mutex);
-            _pendingResult = r;
+            _pendingResult = result;
             _resultReady = true;
             mutex_exit(&_mutex);
         }
+        return;
+    }
+
+    if (httpCode == HTTP_TOO_MANY_REQS) {
+        const int wait = https.header("Retry-After").toInt();
+        https.end();
+        sleep_ms((wait > 0 ? wait : RATE_LIMIT_DEFAULT_S) * 1000UL);
+        if (!retrying) _doFetch(true);
         return;
     }
 
@@ -199,16 +212,23 @@ void SpotifyClient::_doFetch() {
     }
 }
 
-void SpotifyClient::_doToggle() {
+void SpotifyClient::_doToggle(bool retrying) {
     WiFiClientSecure wifiClient;
     wifiClient.setInsecure();
     wifiClient.setTimeout(5000);
 
+    int retryAfterSec = RATE_LIMIT_DEFAULT_S;
     auto doRequest = [&]() {
         HTTPClient https;
         https.begin(wifiClient, _isPlaying ? PAUSE_URL : PLAY_URL);
         https.addHeader("Authorization", "Bearer " + _accessToken);
+        const char* toggleHdrs[] = {"Retry-After"};
+        https.collectHeaders(toggleHdrs, 1);
         const int code = https.PUT("");
+        if (code == HTTP_TOO_MANY_REQS) {
+            const int w = https.header("Retry-After").toInt();
+            if (w > 0) retryAfterSec = w;
+        }
         https.end();
         return code;
     };
@@ -218,6 +238,12 @@ void SpotifyClient::_doToggle() {
     if (httpCode == HTTP_UNAUTHORIZED) {
         if (!refreshAccessToken()) return;
         httpCode = doRequest();
+    }
+
+    if (httpCode == HTTP_TOO_MANY_REQS) {
+        sleep_ms(retryAfterSec * 1000UL);
+        if (!retrying) _doToggle(true);
+        return;
     }
 
     if (httpCode == HTTP_NO_CONTENT || httpCode == HTTP_OK) {
@@ -232,7 +258,7 @@ void SpotifyClient::_doToggle() {
     }
 }
 
-void SpotifyClient::_doSkip() {
+void SpotifyClient::_doSkip(bool retrying) {
     WiFiClientSecure client;
     client.setInsecure();
     client.setTimeout(5000);
@@ -240,14 +266,25 @@ void SpotifyClient::_doSkip() {
     HTTPClient https;
     https.begin(client, NEXT_URL);
     https.addHeader("Authorization", "Bearer " + _accessToken);
+    const char* skipHdrs[] = {"Retry-After"};
+    https.collectHeaders(skipHdrs, 1);
     const int httpCode = https.POST("");
-    https.end();
 
     if (httpCode == HTTP_UNAUTHORIZED) {
-        if (refreshAccessToken()) _doSkip();
+        https.end();
+        if (refreshAccessToken()) _doSkip(retrying);
         return;
     }
 
+    if (httpCode == HTTP_TOO_MANY_REQS) {
+        const int wait = https.header("Retry-After").toInt();
+        https.end();
+        sleep_ms((wait > 0 ? wait : RATE_LIMIT_DEFAULT_S) * 1000UL);
+        if (!retrying) _doSkip(true);
+        return;
+    }
+
+    https.end();
     sleep_ms(SPOTIFY_SKIP_PROPAGATION_MS);
     _doFetch();
 }
