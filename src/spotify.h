@@ -47,9 +47,14 @@ private:
     mutex_t        _mutex;
 
     bool refreshAccessToken();
+    int  doPut(const String& url);
+    void publishResult(const SpotifyResult& r);
+    void handleRateLimit(int waitSec);
     void _doFetch();
     void _doToggle();
     void _doSkip();
     void _doSetVolume();
     static String base64Encode(const String& input);
+
+    int _lastRetryAfter = 0;
 };

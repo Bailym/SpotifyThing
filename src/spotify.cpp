@@ -130,6 +130,47 @@ void SpotifyClient::tickCore1() {
     }
 }
 
+void SpotifyClient::publishResult(const SpotifyResult& r) {
+    mutex_enter_blocking(&_mutex);
+    _pendingResult = r;
+    _resultReady = true;
+    mutex_exit(&_mutex);
+}
+
+void SpotifyClient::handleRateLimit(int waitSec) {
+    SpotifyResult r{};
+    r.type = SpotifyResult::Type::Error;
+    strncpy(r.message, "Rate limited", sizeof(r.message) - 1);
+    publishResult(r);
+    _rateLimitUntilMs = millis() + (unsigned long)(waitSec > 0 ? waitSec : RATE_LIMIT_DEFAULT_S) * 1000UL;
+}
+
+int SpotifyClient::doPut(const String& url) {
+    WiFiClientSecure wifiClient;
+    wifiClient.setInsecure();
+    wifiClient.setTimeout(5000);
+
+    _lastRetryAfter = RATE_LIMIT_DEFAULT_S;
+    auto doRequest = [&]() {
+        HTTPClient https;
+        https.begin(wifiClient, url);
+        https.addHeader("Authorization", "Bearer " + _accessToken);
+        const char* hdrs[] = {"Retry-After"};
+        https.collectHeaders(hdrs, 1);
+        const int code = https.PUT("");
+        if (code == HTTP_TOO_MANY_REQS) {
+            const int w = https.header("Retry-After").toInt();
+            if (w > 0) _lastRetryAfter = w;
+        }
+        https.end();
+        return code;
+    };
+
+    int code = doRequest();
+    if (code == HTTP_UNAUTHORIZED && refreshAccessToken()) code = doRequest();
+    return code;
+}
+
 void SpotifyClient::_doFetch() {
     WiFiClientSecure client;
     client.setInsecure();
@@ -148,29 +189,18 @@ void SpotifyClient::_doFetch() {
         if (refreshAccessToken()) {
             _doFetch();
         } else {
-            SpotifyResult result{};
-            result.type = SpotifyResult::Type::Error;
-            strncpy(result.message, "Auth failed", sizeof(result.message) - 1);
-            mutex_enter_blocking(&_mutex);
-            _pendingResult = result;
-            _resultReady = true;
-            mutex_exit(&_mutex);
+            SpotifyResult r{};
+            r.type = SpotifyResult::Type::Error;
+            strncpy(r.message, "Auth failed", sizeof(r.message) - 1);
+            publishResult(r);
         }
         return;
     }
 
     if (httpCode == HTTP_TOO_MANY_REQS) {
         const int wait = https.header("Retry-After").toInt();
-        Serial.println("[spotify] 429 rate limited, Retry-After: " + String(wait) + "s");
         https.end();
-        SpotifyResult rl{};
-        rl.type = SpotifyResult::Type::Error;
-        strncpy(rl.message, "Rate limited", sizeof(rl.message) - 1);
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = rl;
-        _resultReady = true;
-        mutex_exit(&_mutex);
-        _rateLimitUntilMs = millis() + (unsigned long)(wait > 0 ? wait : RATE_LIMIT_DEFAULT_S) * 1000UL;
+        handleRateLimit(wait);
         return;
     }
 
@@ -193,10 +223,7 @@ void SpotifyClient::_doFetch() {
             SpotifyResult r{};
             r.type = SpotifyResult::Type::Error;
             strncpy(r.message, "Parse error", sizeof(r.message) - 1);
-            mutex_enter_blocking(&_mutex);
-            _pendingResult = r;
-            _resultReady = true;
-            mutex_exit(&_mutex);
+            publishResult(r);
             return;
         }
 
@@ -221,81 +248,32 @@ void SpotifyClient::_doFetch() {
         if (_volumeChangeAt == 0) _targetVolume = volume;
         _supportsVolume = supportsVolume;
 
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = result;
-        _resultReady = true;
-        mutex_exit(&_mutex);
+        publishResult(result);
 
     } else if (httpCode == HTTP_NO_CONTENT) {
         https.end();
         SpotifyResult r{};
         r.type = SpotifyResult::Type::Idle;
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = r;
-        _resultReady = true;
-        mutex_exit(&_mutex);
+        publishResult(r);
 
     } else {
         https.end();
         SpotifyResult r{};
         r.type = SpotifyResult::Type::Error;
         snprintf(r.message, sizeof(r.message), "%d", httpCode);
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = r;
-        _resultReady = true;
-        mutex_exit(&_mutex);
+        publishResult(r);
     }
 }
 
 void SpotifyClient::_doToggle() {
-    WiFiClientSecure wifiClient;
-    wifiClient.setInsecure();
-    wifiClient.setTimeout(5000);
-
-    int retryAfterSec = RATE_LIMIT_DEFAULT_S;
-    auto doRequest = [&]() {
-        HTTPClient https;
-        https.begin(wifiClient, _isPlaying ? PAUSE_URL : PLAY_URL);
-        https.addHeader("Authorization", "Bearer " + _accessToken);
-        const char* toggleHdrs[] = {"Retry-After"};
-        https.collectHeaders(toggleHdrs, 1);
-        const int code = https.PUT("");
-        if (code == HTTP_TOO_MANY_REQS) {
-            const int w = https.header("Retry-After").toInt();
-            if (w > 0) retryAfterSec = w;
-        }
-        https.end();
-        return code;
-    };
-
-    int httpCode = doRequest();
-
-    if (httpCode == HTTP_UNAUTHORIZED) {
-        if (!refreshAccessToken()) return;
-        httpCode = doRequest();
-    }
-
-    if (httpCode == HTTP_TOO_MANY_REQS) {
-        SpotifyResult rl{};
-        rl.type = SpotifyResult::Type::Error;
-        strncpy(rl.message, "Rate limited", sizeof(rl.message) - 1);
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = rl;
-        _resultReady = true;
-        mutex_exit(&_mutex);
-        _rateLimitUntilMs = millis() + (unsigned long)retryAfterSec * 1000UL;
-        return;
-    }
-
+    const int httpCode = doPut(_isPlaying ? PAUSE_URL : PLAY_URL);
+    if (httpCode == HTTP_TOO_MANY_REQS) { handleRateLimit(_lastRetryAfter); return; }
     if (httpCode == HTTP_NO_CONTENT || httpCode == HTTP_OK) {
         _isPlaying = !_isPlaying;
         SpotifyResult r{};
         r.type      = SpotifyResult::Type::PlayingStateChanged;
         r.isPlaying = _isPlaying;
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = r;
-        _resultReady = true;
-        mutex_exit(&_mutex);
+        publishResult(r);
     }
 }
 
@@ -307,8 +285,8 @@ void SpotifyClient::_doSkip() {
     HTTPClient https;
     https.begin(client, NEXT_URL);
     https.addHeader("Authorization", "Bearer " + _accessToken);
-    const char* skipHdrs[] = {"Retry-After"};
-    https.collectHeaders(skipHdrs, 1);
+    const char* hdrs[] = {"Retry-After"};
+    https.collectHeaders(hdrs, 1);
     const int httpCode = https.POST("");
 
     if (httpCode == HTTP_UNAUTHORIZED) {
@@ -320,14 +298,7 @@ void SpotifyClient::_doSkip() {
     if (httpCode == HTTP_TOO_MANY_REQS) {
         const int wait = https.header("Retry-After").toInt();
         https.end();
-        SpotifyResult rl{};
-        rl.type = SpotifyResult::Type::Error;
-        strncpy(rl.message, "Rate limited", sizeof(rl.message) - 1);
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = rl;
-        _resultReady = true;
-        mutex_exit(&_mutex);
-        _rateLimitUntilMs = millis() + (unsigned long)(wait > 0 ? wait : RATE_LIMIT_DEFAULT_S) * 1000UL;
+        handleRateLimit(wait);
         return;
     }
 
@@ -338,57 +309,15 @@ void SpotifyClient::_doSkip() {
 
 void SpotifyClient::_doSetVolume() {
     if (!_supportsVolume) return;
-
     const int8_t target = _targetVolume;
-
-    WiFiClientSecure wifiClient;
-    wifiClient.setInsecure();
-    wifiClient.setTimeout(5000);
-
-    int retryAfterSec = RATE_LIMIT_DEFAULT_S;
-    auto doRequest = [&]() {
-        HTTPClient https;
-        https.begin(wifiClient, VOLUME_URL + String(target));
-        https.addHeader("Authorization", "Bearer " + _accessToken);
-        const char* hdrs[] = {"Retry-After"};
-        https.collectHeaders(hdrs, 1);
-        const int code = https.PUT("");
-        if (code == HTTP_TOO_MANY_REQS) {
-            const int w = https.header("Retry-After").toInt();
-            if (w > 0) retryAfterSec = w;
-        }
-        https.end();
-        return code;
-    };
-
-    int httpCode = doRequest();
-
-    if (httpCode == HTTP_UNAUTHORIZED) {
-        if (!refreshAccessToken()) return;
-        httpCode = doRequest();
-    }
-
-    if (httpCode == HTTP_TOO_MANY_REQS) {
-        SpotifyResult result{};
-        result.type = SpotifyResult::Type::Error;
-        strncpy(result.message, "Rate limited", sizeof(result.message) - 1);
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = result;
-        _resultReady = true;
-        mutex_exit(&_mutex);
-        _rateLimitUntilMs = millis() + (unsigned long)retryAfterSec * 1000UL;
-        return;
-    }
-
+    const int httpCode = doPut(VOLUME_URL + String(target));
+    if (httpCode == HTTP_TOO_MANY_REQS) { handleRateLimit(_lastRetryAfter); return; }
     if (httpCode == HTTP_NO_CONTENT || httpCode == HTTP_OK) {
         _volume = target;
         SpotifyResult r{};
         r.type   = SpotifyResult::Type::VolumeChanged;
         r.volume = _volume;
-        mutex_enter_blocking(&_mutex);
-        _pendingResult = r;
-        _resultReady = true;
-        mutex_exit(&_mutex);
+        publishResult(r);
     }
 }
 
