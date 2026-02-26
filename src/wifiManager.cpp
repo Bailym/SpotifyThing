@@ -5,10 +5,10 @@
 #include <time.h>
 
 static constexpr long GMT_OFFSET_SEC = 0;
-static constexpr unsigned int CONNECT_CHECK_MS = 500;
+static constexpr unsigned int CONNECT_CHECK_MS = 250;
 static constexpr unsigned int CONNECTED_DISPLAY_MS = 500;
 static constexpr unsigned int MAX_ATTEMPTS = 5;
-static constexpr unsigned int CHECKS_PER_ATTEMPT = 20;
+static constexpr unsigned int CHECKS_PER_ATTEMPT = 5;
 
 void wifiConnect()
 {
