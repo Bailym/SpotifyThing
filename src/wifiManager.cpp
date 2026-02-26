@@ -5,27 +5,35 @@
 #include <time.h>
 
 static constexpr long GMT_OFFSET_SEC = 0;
+static constexpr unsigned int CONNECT_CHECK_MS = 500;
+static constexpr unsigned int CONNECTED_DISPLAY_MS = 500;
+static constexpr unsigned int MAX_ATTEMPTS = 5;
+static constexpr unsigned int CHECKS_PER_ATTEMPT = 20;
 
-static constexpr unsigned long CONNECT_TIMEOUT_MS   = 30000;
-static constexpr unsigned int  CONNECT_CHECK_MS      = 500;
-static constexpr unsigned int  CONNECTED_DISPLAY_MS  = 500;
+void wifiConnect()
+{
+  for (unsigned int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)
+  {
+    String line2 = "Attempt " + String(attempt) + "/" + String(MAX_ATTEMPTS);
+    displayMessage(("Connecting to " + String(WIFI_SSID)).c_str(), line2.c_str());
 
-void wifiConnect() {
-  displayMessage("Connecting...");
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-
-  const unsigned long startMs = millis();
-  while (WiFi.status() != WL_CONNECTED) {
-    if (millis() - startMs >= CONNECT_TIMEOUT_MS) {
-      displayMessage("WiFi timeout");
-      return;
+    for (unsigned int check = 0; check < CHECKS_PER_ATTEMPT; check++)
+    {
+      if (WiFi.status() == WL_CONNECTED)
+      {
+        WiFi.noLowPowerMode();
+        configTime(5000, GMT_OFFSET_SEC, "pool.ntp.org", "time.nist.gov");
+        displayMessage("Connected!");
+        delay(CONNECTED_DISPLAY_MS);
+        return;
+      }
+      delay(CONNECT_CHECK_MS);
     }
-    delay(CONNECT_CHECK_MS);
+
+    WiFi.disconnect();
   }
 
-  WiFi.noLowPowerMode();
-  configTime(5000, GMT_OFFSET_SEC, "pool.ntp.org", "time.nist.gov");
-  displayMessage("Connected!");
-  delay(CONNECTED_DISPLAY_MS);
+  displayMessage("WiFi failed", "Check credentials");
 }
