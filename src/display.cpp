@@ -18,10 +18,14 @@ static constexpr int PAUSE_ICON_Y = 3;
 static constexpr int PAUSE_ICON_WIDTH_PX = 3;
 static constexpr int PAUSE_ICON_HEIGHT_PX = 8;
 
-static constexpr unsigned int SCROLL_SPEED_MS = 40;
-static constexpr int SCROLL_PAUSE_MS = 60;
-static constexpr unsigned int PROGRESS_UPDATE_MS = 500;
-static constexpr unsigned int CLOCK_UPDATE_MS = 30000;
+static constexpr unsigned int  SCROLL_SPEED_MS      = 40;
+static constexpr int           SCROLL_PAUSE_MS       = 60;
+static constexpr unsigned int  PROGRESS_UPDATE_MS    = 500;
+static constexpr unsigned int  CLOCK_UPDATE_MS       = 30000;
+static constexpr unsigned long VOLUME_DISPLAY_MS     = 2000;
+static constexpr int           VOLUME_LABEL_Y        = 46;
+static constexpr int           VOLUME_BAR_Y          = 51;
+static constexpr int           VOLUME_BAR_HEIGHT_PX  = 5;
 
 static constexpr uint8_t CONTRAST_PLAYING = 200;
 static constexpr uint8_t CONTRAST_PAUSED = 30;
@@ -43,6 +47,8 @@ static uint32_t songDurationMs = 0;
 static unsigned long progressUpdatedAt = 0;
 static unsigned long lastScrollTimeMs = 0;
 static bool clockMode = false;
+static int8_t volumePercent = 0;
+static unsigned long volumeShownAt = 0;
 
 static uint32_t estimatedProgress()
 {
@@ -86,6 +92,18 @@ static void drawProgressBar()
     display.drawBox(0, PROGRESS_BAR_Y, filled, PROGRESS_BAR_HEIGHT_PX);
 }
 
+static void drawVolumeOverlay()
+{
+  String label = String(volumePercent) + "%";
+  int textW = display.getStrWidth(label.c_str());
+  display.drawStr((DISPLAY_WIDTH_PX - textW) / 2, VOLUME_LABEL_Y, label.c_str());
+
+  int fill = volumePercent * DISPLAY_WIDTH_PX / 100;
+  display.drawFrame(0, VOLUME_BAR_Y, DISPLAY_WIDTH_PX, VOLUME_BAR_HEIGHT_PX);
+  if (fill > 0)
+    display.drawBox(0, VOLUME_BAR_Y, fill, VOLUME_BAR_HEIGHT_PX);
+}
+
 static void drawSongInfo()
 {
   if (lines[0].text.length() > 0)
@@ -105,6 +123,11 @@ static void redraw()
   else
   {
     drawSongInfo();
+
+    if (volumeShownAt > 0 && millis() - volumeShownAt < VOLUME_DISPLAY_MS)
+    {
+      drawVolumeOverlay();
+    }
 
     if (!isPlaying)
     {
@@ -205,6 +228,13 @@ void displayInit()
   display.setFont(u8g2_font_helvB08_tr);
 }
 
+void displaySetVolume(int8_t volume)
+{
+  volumePercent = volume;
+  volumeShownAt = millis();
+  redraw();
+}
+
 void displayEnterClockMode()
 {
   clockMode = true;
@@ -250,6 +280,12 @@ void displayTick()
 
   needsRedraw |= progressBarTick();
   needsRedraw |= clockTick();
+
+  if (volumeShownAt > 0 && millis() - volumeShownAt >= VOLUME_DISPLAY_MS)
+  {
+    volumeShownAt = 0;
+    needsRedraw = true;
+  }
 
   if (needsRedraw)
   {

@@ -101,13 +101,15 @@ void SpotifyClient::skipTrack() {
 }
 
 void SpotifyClient::increaseVolume() {
-    _targetVolume  = min((int8_t)100, (int8_t)(_targetVolume + VOLUME_CHANGE_STEP));
+    _targetVolume   = min((int8_t)100, (int8_t)(_targetVolume + VOLUME_CHANGE_STEP));
     _volumeChangeAt = millis();
+    if (_supportsVolume) displaySetVolume(_targetVolume);
 }
 
 void SpotifyClient::decreaseVolume() {
-    _targetVolume  = max((int8_t)0, (int8_t)(_targetVolume - VOLUME_CHANGE_STEP));
+    _targetVolume   = max((int8_t)0, (int8_t)(_targetVolume - VOLUME_CHANGE_STEP));
     _volumeChangeAt = millis();
+    if (_supportsVolume) displaySetVolume(_targetVolume);
 }
 
 void SpotifyClient::tickCore1() {
