@@ -23,12 +23,12 @@ static int pendingPresses = 0;
 
 static void onClockwise()
 {
-    Serial.println("clockwise");
+    spotifyClient.increaseVolume();
 }
 
 static void onCounterclockwise()
 {
-    Serial.println("counterclockwise");
+    spotifyClient.decreaseVolume();
 }
 
 static void onSwitchPressed()

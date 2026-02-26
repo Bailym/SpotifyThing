@@ -5,7 +5,7 @@
 enum class SpotifyCommand : uint8_t { Fetch, TogglePlayPause, Skip };
 
 struct SpotifyResult {
-    enum class Type : uint8_t { NowPlaying, PlayingStateChanged, Idle, Error };
+    enum class Type : uint8_t { NowPlaying, PlayingStateChanged, VolumeChanged, Idle, Error };
     Type     type;
     bool     isPlaying;
     uint32_t progressMs;
@@ -14,6 +14,7 @@ struct SpotifyResult {
     char     artist[128];
     char     track[128];
     char     message[64];
+    int8_t   volume;
 };
 
 class SpotifyClient {
@@ -22,6 +23,8 @@ public:
     void requestFetch();
     void togglePlayPause();
     void skipTrack();
+    void increaseVolume();
+    void decreaseVolume();
     void tickCore1();
     void applyPendingResult();
 
@@ -31,6 +34,10 @@ private:
     unsigned long _idleSince = 0;
     bool          _isPlaying = false;
     unsigned long _rateLimitUntilMs = 0;
+    int8_t           _volume         = 0;
+    volatile int8_t  _targetVolume   = 0;
+    volatile unsigned long _volumeChangeAt = 0;
+    bool             _supportsVolume = false;
 
     volatile SpotifyCommand _pendingCommand;
     volatile bool           _commandPending = false;
@@ -43,5 +50,6 @@ private:
     void _doFetch();
     void _doToggle();
     void _doSkip();
+    void _doSetVolume();
     static String base64Encode(const String& input);
 };

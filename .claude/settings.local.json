@@ -5,7 +5,8 @@
       "WebFetch(domain:github.com)",
       "Bash(gh api:*)",
       "WebSearch",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "WebFetch(domain:developer.spotify.com)"
     ]
   }
 }

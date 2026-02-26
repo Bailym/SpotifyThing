@@ -6,3 +6,4 @@ build/
 .vscode/ipch
 src/secrets.h
 *.env
+spotify_tokens.txt
