@@ -232,7 +232,6 @@ void displaySetVolume(int8_t volume)
 {
   volumePercent = volume;
   volumeShownAt = millis();
-  redraw();
 }
 
 void displayEnterClockMode()
@@ -281,9 +280,10 @@ void displayTick()
   needsRedraw |= progressBarTick();
   needsRedraw |= clockTick();
 
-  if (volumeShownAt > 0 && millis() - volumeShownAt >= VOLUME_DISPLAY_MS)
+  if (volumeShownAt > 0)
   {
-    volumeShownAt = 0;
+    if (millis() - volumeShownAt >= VOLUME_DISPLAY_MS)
+      volumeShownAt = 0;
     needsRedraw = true;
   }
 
