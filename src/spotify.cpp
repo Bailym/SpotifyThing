@@ -115,6 +115,7 @@ void SpotifyClient::tickCore1() {
 
     if (_targetVolume != _volume && _volumeChangeAt > 0 &&
         millis() - _volumeChangeAt >= VOLUME_DEBOUNCE_MS) {
+        _volumeChangeAt = 0;
         _doSetVolume();
         return;
     }
@@ -217,7 +218,7 @@ void SpotifyClient::_doFetch() {
 
         _isPlaying      = result.isPlaying;
         _volume         = volume;
-        _targetVolume   = volume;
+        if (_volumeChangeAt == 0) _targetVolume = volume;
         _supportsVolume = supportsVolume;
 
         mutex_enter_blocking(&_mutex);
