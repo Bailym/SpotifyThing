@@ -26,8 +26,8 @@ src/
 ├── main.cpp              # setup() and loop() only
 ├── display.h/cpp         # SH1106 init, message rendering, scroll logic
 ├── wifi_manager.h/cpp    # WiFi connection
-├── spotify.h/cpp         # Spotify API client (fetch, token refresh, play/pause, skip)
-├── userControls.h/cpp    # Encoder input, button gesture detection (single/double press)
+├── spotify.h/cpp         # Spotify API client (fetch, token refresh, play/pause, skip, volume)
+├── userControls.h/cpp    # Encoder input, button gesture detection (single/double press), rotation
 └── secrets.h             # Credentials (gitignored — copy from secrets.h.example)
 lib/
 └── ky-040/               # KY-040 encoder driver (polling via repeating timer)
@@ -44,6 +44,9 @@ lib/
 - Encoder button single press: toggle play/pause (fetches current state first to avoid stale toggle)
 - Encoder button double press: skip to next track (display updates immediately after skip)
 - Button debouncing (50ms) and deferred dispatch (500ms window) to distinguish single from double press
+- Encoder rotation: adjust volume in 10% steps (clamped 0–100), debounced 300ms before sending the API call to avoid spamming requests while scrolling
+- Volume display: an overlay showing percentage and a fill bar appears for 2 seconds on any volume change, then reverts to the normal track view
+- Volume is only shown/adjusted on devices that report `supports_volume: true` in the Spotify API response
 
 ## Dual-Core Architecture
 
@@ -56,7 +59,8 @@ All Spotify HTTP calls run on **Core 1**, leaving **Core 0** free to handle disp
 | `displayTick()` | `spotifyClient.tickCore1()` |
 | `userControlsTick()` | Executes `_doFetch()`, `_doToggle()`, `_doSkip()` |
 | `spotifyClient.applyPendingResult()` | Writes results to `_pendingResult` under mutex |
-| Schedules fetch every 3 s via `requestFetch()` | Sleeps 600 ms for skip propagation (free on Core 1) |
+| Schedules fetch every 3 s via `requestFetch()` | Executes `_doSetVolume()` after 300 ms debounce |
+| | Sleeps 600 ms for skip propagation (free on Core 1) |
 
 ### Communication
 
@@ -96,7 +100,6 @@ Put the Pico W into BOOTSEL mode (hold BOOTSEL while plugging in USB), then run 
 - **Skip previous** — add a triple-press or long-press gesture to call `POST /v1/me/player/previous`; the double-press detection pattern in `userControls.cpp` can be extended
 
 **Medium effort**
-- **Volume control** — encoder rotation already wired; call `PUT /v1/me/player/volume` with a clamped 0–100 value on each clockwise/counterclockwise pulse
 - **Display brightness scheduling** — `display.setContrast()` (U8g2) combined with NTP time to dim the screen at night
 - **Album name** — rotate between artist, album, and track on a timer using the existing scroll infrastructure; requires adding `item.album.name` to the JSON filter
 - **Middleware server** — offload OAuth token management and Spotify API calls to a hosted server; Pico calls one simple endpoint and gets back artist/track, removing the client secret from the firmware
@@ -113,3 +116,14 @@ Controlled by constants at the top of `display.cpp`:
 |---|---|---|
 | `SCROLL_SPEED_MS` | 40 | Milliseconds per pixel scrolled |
 | `SCROLL_PAUSE` | 60 frames | Pause duration at start and end of scroll (~2.4s) |
+| `VOLUME_DISPLAY_MS` | 2000 | How long the volume overlay stays on screen after a change |
+
+## Volume Control
+
+Encoder rotation calls `increaseVolume()` / `decreaseVolume()` on the `SpotifyClient`, which:
+
+1. Clamps `_targetVolume` in 10% steps (0–100)
+2. Immediately updates the display overlay via `displaySetVolume()` (only if `_supportsVolume`)
+3. Resets a `_volumeChangeAt` timestamp; Core 1 waits 300 ms of inactivity before firing `_doSetVolume()` — avoids spamming the API while the encoder is being turned
+4. `PUT /v1/me/player/volume?volume_percent=N` is only sent to devices that report `supports_volume: true`
+5. On success Core 1 publishes a `VolumeChanged` result; on the next `_doFetch()` response the synced value overwrites `_targetVolume` only if no change is in flight
