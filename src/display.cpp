@@ -30,7 +30,7 @@ static constexpr int           VOLUME_BAR_HEIGHT_PX  = 5;
 static constexpr uint8_t CONTRAST_PLAYING = 200;
 static constexpr uint8_t CONTRAST_PAUSED = 30;
 
-static U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R2, U8X8_PIN_NONE);
+static U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);
 
 struct LineState
 {
