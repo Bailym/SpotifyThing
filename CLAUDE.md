@@ -98,15 +98,21 @@ Put the Pico W into BOOTSEL mode (hold BOOTSEL while plugging in USB), then run 
 **Quick wins**
 - **WiFi reconnection** — if WiFi drops the device is currently stuck; check `WiFi.status()` in `loop()` and attempt reconnection
 - **Skip previous** — add a triple-press or long-press gesture to call `POST /v1/me/player/previous`; the double-press detection pattern in `userControls.cpp` can be extended
+- **Like current track** — long-press the encoder button to call `PUT /v1/me/tracks?ids=...` with the current track ID; show a brief confirmation on the display
+- **Show playback device name** — `item.device.name` is available in the API response; could display briefly on track change or as a status line
 
 **Medium effort**
 - **Display brightness scheduling** — `display.setContrast()` (U8g2) combined with NTP time to dim the screen at night
 - **Album name** — rotate between artist, album, and track on a timer using the existing scroll infrastructure; requires adding `item.album.name` to the JSON filter
 - **Middleware server** — offload OAuth token management and Spotify API calls to a hosted server; Pico calls one simple endpoint and gets back artist/track, removing the client secret from the firmware
+- **Seek bar interaction** — hold the encoder button and rotate to seek within the track; call `PUT /v1/me/player/seek?position_ms=N` and update the progress bar immediately
+- **Shuffle / repeat toggle** — display current shuffle state (from `shuffle_state` in the API response) and toggle it with a gesture; requires adding the field to the JSON filter and a `PUT /v1/me/player/shuffle` call
 
 **More involved**
 - **Screensaver** — blank the screen after inactivity with `display.setPowerSave(1)` (U8g2) and wake on track change
 - **OTA firmware updates** — the earlephilhower core has built-in `ArduinoOTA` support for flashing over WiFi
+- **Playlist/context display** — show the name of the currently playing playlist or album context; requires `context.uri` and a second API call to resolve the name
+- **Multi-device switching** — fetch available devices via `GET /v1/me/player/devices` and allow switching the active device from the encoder menu
 
 ## Display Scroll Behaviour
 
