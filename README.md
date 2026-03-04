@@ -2,6 +2,10 @@
 
 A Raspberry Pi Pico W project that shows the currently playing Spotify track on an SH1106 OLED display. Supports play/pause, skip, and volume control via a rotary encoder.
 
+![SpotifyThing displaying a track on the OLED](images/image-1.jpg)
+
+<video src="images/video-1.mp4" controls></video>
+
 ## Hardware
 
 | Part | Details |
