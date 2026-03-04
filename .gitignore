@@ -7,3 +7,5 @@ build/
 src/secrets.h
 *.env
 spotify_tokens.txt
+.venv
+*.pyc

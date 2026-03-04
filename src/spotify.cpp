@@ -358,6 +358,7 @@ void SpotifyClient::applyPendingResult() {
             break;
 
         case SpotifyResult::Type::Error:
+            _lastTrackId = "";
             displayMessage("Spotify error", r.message);
             break;
     }
