@@ -28,6 +28,7 @@ void loop()
     if (WiFi.status() != WL_CONNECTED)
     {
         wifiConnect();
+        spotifyClient.forceDisplayRefresh();
         lastFetch = millis();
     }
 

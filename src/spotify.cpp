@@ -1,6 +1,7 @@
 #include "spotify.h"
 #include "display.h"
 #include "secrets.h"
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -85,6 +86,10 @@ bool SpotifyClient::refreshAccessToken() {
     return true;
 }
 
+void SpotifyClient::forceDisplayRefresh() {
+    _lastTrackId = "";
+}
+
 void SpotifyClient::requestFetch() {
     _pendingCommand = SpotifyCommand::Fetch;
     _commandPending = true;
@@ -114,6 +119,7 @@ void SpotifyClient::decreaseVolume() {
 
 void SpotifyClient::tickCore1() {
     if (millis() < _rateLimitUntilMs) return;
+    if (WiFi.status() != WL_CONNECTED) return;
 
     if (_targetVolume != _volume && _volumeChangeAt > 0 &&
         millis() - _volumeChangeAt >= VOLUME_DEBOUNCE_MS) {
@@ -258,12 +264,14 @@ void SpotifyClient::_doFetch() {
         r.type = SpotifyResult::Type::Idle;
         publishResult(r);
 
-    } else {
+    } else if (httpCode > 0) {
         https.end();
         SpotifyResult r{};
         r.type = SpotifyResult::Type::Error;
         snprintf(r.message, sizeof(r.message), "%d", httpCode);
         publishResult(r);
+    } else {
+        https.end();
     }
 }
 

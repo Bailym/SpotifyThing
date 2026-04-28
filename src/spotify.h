@@ -27,6 +27,7 @@ public:
     void decreaseVolume();
     void tickCore1();
     void applyPendingResult();
+    void forceDisplayRefresh();
 
 private:
     String        _accessToken;
