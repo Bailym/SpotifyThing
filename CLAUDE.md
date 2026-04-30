@@ -96,7 +96,6 @@ Put the Pico W into BOOTSEL mode (hold BOOTSEL while plugging in USB), then run 
 ## Possible Future Features
 
 **Quick wins**
-- **WiFi reconnection** — if WiFi drops the device is currently stuck; check `WiFi.status()` in `loop()` and attempt reconnection
 - **Skip previous** — add a triple-press or long-press gesture to call `POST /v1/me/player/previous`; the double-press detection pattern in `userControls.cpp` can be extended
 - **Like current track** — long-press the encoder button to call `PUT /v1/me/tracks?ids=...` with the current track ID; show a brief confirmation on the display
 - **Show playback device name** — `item.device.name` is available in the API response; could display briefly on track change or as a status line

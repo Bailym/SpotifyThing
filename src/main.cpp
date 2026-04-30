@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include "display.h"
 #include "wifiManager.h"
 #include "spotify.h"
@@ -23,6 +24,13 @@ void setup()
 void loop()
 {
     static unsigned long lastFetch = 0;
+
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        wifiConnect();
+        spotifyClient.forceDisplayRefresh();
+        lastFetch = millis();
+    }
 
     spotifyClient.applyPendingResult();
     displayTick();
