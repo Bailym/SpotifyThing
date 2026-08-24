@@ -12,8 +12,8 @@ typedef enum
 
 typedef enum
 {
-    KY_040_PIN_A  = 20,
-    KY_040_PIN_B  = 19,
+    KY_040_PIN_A  = 19,
+    KY_040_PIN_B  = 20,
     KY_040_PIN_SW = 18
 } tKy040Pin;
 
@@ -141,6 +141,9 @@ void Encoder_Init(void)
     gpio_set_dir(KY_040_PIN_A,  GPIO_IN);
     gpio_set_dir(KY_040_PIN_B,  GPIO_IN);
     gpio_set_dir(KY_040_PIN_SW, GPIO_IN);
+    gpio_pull_up(KY_040_PIN_A);
+    gpio_pull_up(KY_040_PIN_B);
+    gpio_pull_up(KY_040_PIN_SW);
 
     lastStateA  = GetEncoderPinState(KY_040_PIN_A);
     lastStateB  = GetEncoderPinState(KY_040_PIN_B);

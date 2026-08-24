@@ -9,8 +9,8 @@ A Raspberry Pi Pico W project that displays the currently playing Spotify track 
   - SDA: GP16
   - SCL: GP17
 - **Encoder:** KY-040 rotary encoder
-  - CLK: GP20
-  - DT: GP19
+  - CLK: GP19
+  - DT: GP20
   - SW: GP18
 
 ## Platform
