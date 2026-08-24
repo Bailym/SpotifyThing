@@ -36,10 +36,11 @@ lib/
 ## Features
 
 - Connects to WiFi on boot and disables power saving mode for consistent latency
-- Fetches the currently playing track from the Spotify API every 3 seconds
+- Fetches the currently playing track from the Spotify API every 5 seconds
 - Only updates the display when the track ID changes — avoids unnecessary redraws and scroll resets
 - Retains the last track on screen when nothing is playing
-- Automatically refreshes the Spotify access token on 401 responses
+- Automatically refreshes the Spotify access token on 401 responses, retrying the request at most once (`_doFetch()` / `_doSkip()` take a `retried` flag); `refreshAccessToken()` rejects a response with a missing or empty `access_token`
+- Backs off on 429 responses with an exponential rate-limit window — no Spotify calls are made while it is open (see [Rate Limit Handling](#rate-limit-handling))
 - Horizontal scrolling for artist/track names that exceed the display width, with configurable pause at each end
 - Encoder button single press: toggle play/pause (fetches current state first to avoid stale toggle)
 - Encoder button double press: skip to next track (display updates immediately after skip)
@@ -59,7 +60,7 @@ All Spotify HTTP calls run on **Core 1**, leaving **Core 0** free to handle disp
 | `displayTick()` | `spotifyClient.tickCore1()` |
 | `userControlsTick()` | Executes `_doFetch()`, `_doToggle()`, `_doSkip()` |
 | `spotifyClient.applyPendingResult()` | Writes results to `_pendingResult` under mutex |
-| Schedules fetch every 3 s via `requestFetch()` | Executes `_doSetVolume()` after 300 ms debounce |
+| Schedules fetch every 5 s via `requestFetch()` | Executes `_doSetVolume()` after 300 ms debounce |
 | | Sleeps 600 ms for skip propagation (free on Core 1) |
 
 ### Communication
@@ -132,3 +133,26 @@ Encoder rotation calls `increaseVolume()` / `decreaseVolume()` on the `SpotifyCl
 3. Resets a `_volumeChangeAt` timestamp; Core 1 waits 300 ms of inactivity before firing `_doSetVolume()` — avoids spamming the API while the encoder is being turned
 4. `PUT /v1/me/player/volume?volume_percent=N` is only sent to devices that report `supports_volume: true`
 5. On success Core 1 publishes a `VolumeChanged` result; on the next `_doFetch()` response the synced value overwrites `_targetVolume` only if no change is in flight
+
+## Rate Limit Handling
+
+A 429 from any Spotify call routes into `handleRateLimit()`, which opens a backoff window:
+
+1. Honours the `Retry-After` header when present, otherwise falls back to `RATE_LIMIT_DEFAULT_S`
+2. Takes the larger of that value and the current backoff, then clamps it to `RATE_LIMIT_MAX_BACKOFF_S` — a hostile or broken `Retry-After` cannot park the device indefinitely
+3. Doubles the next backoff on each consecutive 429, up to the same ceiling
+4. Publishes an error result, so the display shows `Spotify error` / `Rate limited` for the duration of the window
+5. `clearRateLimitBackoff()` resets the backoff to `RATE_LIMIT_DEFAULT_S` on any successful request — a 200/204 fetch, a successful play/pause toggle, or a successful volume PUT
+
+While a window is open, `tickCore1()` returns early, so **no** Spotify HTTP calls of any kind are made on Core 1.
+
+Controlled by constants at the top of `spotify.cpp`:
+
+| Constant | Default | Description |
+|---|---|---|
+| `RATE_LIMIT_DEFAULT_S` | 30 | Backoff used when `Retry-After` is absent, and the value the backoff resets to on success |
+| `RATE_LIMIT_MAX_BACKOFF_S` | 300 | Ceiling on any single backoff window, including a `Retry-After` value |
+
+### Known limitation
+
+Commands issued during a backoff window are **silently discarded with no feedback**. The backoff gate sits ahead of command dispatch in `tickCore1()`, and `_pendingCommand` is a single slot that the periodic fetch overwrites every 5 s — so a button press or volume change made while rate limited is lost before Core 1 ever sees it. Not yet addressed.

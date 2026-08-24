@@ -5,7 +5,7 @@
 #include "spotify.h"
 #include "userControls.h"
 
-static const unsigned long FETCH_INTERVAL_MS = 3000;
+static const unsigned long FETCH_INTERVAL_MS = 5000;
 static const int MAIN_LOOP_DELAY_MS = 10;
 
 SpotifyClient spotifyClient;

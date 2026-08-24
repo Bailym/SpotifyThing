@@ -34,7 +34,10 @@ private:
     String        _lastTrackId;
     unsigned long _idleSince = 0;
     bool          _isPlaying = false;
-    unsigned long _rateLimitUntilMs = 0;
+    unsigned long _rateLimitStartMs = 0;
+    unsigned long _rateLimitDurationMs = 0;
+    int           _lastRetryAfter = 0;
+    int           _nextRateLimitBackoffS;
     int8_t           _volume         = 0;
     volatile int8_t  _targetVolume   = 0;
     volatile unsigned long _volumeChangeAt = 0;
@@ -51,11 +54,10 @@ private:
     int  doPut(const String& url);
     void publishResult(const SpotifyResult& r);
     void handleRateLimit(int waitSec);
-    void _doFetch();
+    void clearRateLimitBackoff();
+    void _doFetch(bool retried = false);
     void _doToggle();
-    void _doSkip();
+    void _doSkip(bool retried = false);
     void _doSetVolume();
     static String base64Encode(const String& input);
-
-    int _lastRetryAfter = 0;
 };

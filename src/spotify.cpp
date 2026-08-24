@@ -13,12 +13,13 @@ static constexpr const char* PLAY_URL               = "https://api.spotify.com/v
 static constexpr const char* NEXT_URL               = "https://api.spotify.com/v1/me/player/next";
 static constexpr const char* VOLUME_URL             = "https://api.spotify.com/v1/me/player/volume?volume_percent=";
 
-static constexpr int HTTP_OK              = 200;
-static constexpr int HTTP_NO_CONTENT      = 204;
-static constexpr int HTTP_UNAUTHORIZED    = 401;
-static constexpr int HTTP_TOO_MANY_REQS   = 429;
-static constexpr int RATE_LIMIT_DEFAULT_S = 30;
-static constexpr int VOLUME_CHANGE_STEP   = 10;
+static constexpr int HTTP_OK                  = 200;
+static constexpr int HTTP_NO_CONTENT          = 204;
+static constexpr int HTTP_UNAUTHORIZED        = 401;
+static constexpr int HTTP_TOO_MANY_REQS       = 429;
+static constexpr int RATE_LIMIT_DEFAULT_S     = 30;
+static constexpr int RATE_LIMIT_MAX_BACKOFF_S = 300;
+static constexpr int VOLUME_CHANGE_STEP       = 10;
 
 static constexpr unsigned long IDLE_CLOCK_TIMEOUT_MS      = 10UL * 60UL * 1000UL;
 static constexpr int           SPOTIFY_SKIP_PROPAGATION_MS = 600;
@@ -27,7 +28,8 @@ static constexpr unsigned long VOLUME_DEBOUNCE_MS          = 300;
 static constexpr const char* b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 
-SpotifyClient::SpotifyClient() : _accessToken(SPOTIFY_ACCESS_TOKEN) {
+SpotifyClient::SpotifyClient()
+    : _accessToken(SPOTIFY_ACCESS_TOKEN), _nextRateLimitBackoffS(RATE_LIMIT_DEFAULT_S) {
     mutex_init(&_mutex);
 }
 
@@ -82,7 +84,10 @@ bool SpotifyClient::refreshAccessToken() {
 
     if (error) return false;
 
-    _accessToken = response_json["access_token"].as<String>();
+    const char* accessToken = response_json["access_token"].as<const char*>();
+    if (!accessToken || !*accessToken) return false;
+
+    _accessToken = accessToken;
     return true;
 }
 
@@ -106,19 +111,19 @@ void SpotifyClient::skipTrack() {
 }
 
 void SpotifyClient::increaseVolume() {
-    _targetVolume   = min((int8_t)100, (int8_t)(_targetVolume + VOLUME_CHANGE_STEP));
     _volumeChangeAt = millis();
+    _targetVolume   = min((int8_t)100, (int8_t)(_targetVolume + VOLUME_CHANGE_STEP));
     if (_supportsVolume) displaySetVolume(_targetVolume);
 }
 
 void SpotifyClient::decreaseVolume() {
-    _targetVolume   = max((int8_t)0, (int8_t)(_targetVolume - VOLUME_CHANGE_STEP));
     _volumeChangeAt = millis();
+    _targetVolume   = max((int8_t)0, (int8_t)(_targetVolume - VOLUME_CHANGE_STEP));
     if (_supportsVolume) displaySetVolume(_targetVolume);
 }
 
 void SpotifyClient::tickCore1() {
-    if (millis() < _rateLimitUntilMs) return;
+    if (millis() - _rateLimitStartMs < _rateLimitDurationMs) return;
     if (WiFi.status() != WL_CONNECTED) return;
 
     if (_targetVolume != _volume && _volumeChangeAt > 0 &&
@@ -145,12 +150,24 @@ void SpotifyClient::publishResult(const SpotifyResult& r) {
     mutex_exit(&_mutex);
 }
 
+static int clampedBackoffSeconds(int requestedSec, int currentBackoffSec) {
+    const int requested = requestedSec > 0 ? requestedSec : RATE_LIMIT_DEFAULT_S;
+    return min(max(requested, currentBackoffSec), RATE_LIMIT_MAX_BACKOFF_S);
+}
+
+void SpotifyClient::clearRateLimitBackoff() {
+    _nextRateLimitBackoffS = RATE_LIMIT_DEFAULT_S;
+}
+
 void SpotifyClient::handleRateLimit(int waitSec) {
+    const int backoffSeconds = clampedBackoffSeconds(waitSec, _nextRateLimitBackoffS);
+    _rateLimitStartMs      = millis();
+    _rateLimitDurationMs   = (unsigned long)backoffSeconds * 1000UL;
+    _nextRateLimitBackoffS = min(backoffSeconds * 2, RATE_LIMIT_MAX_BACKOFF_S);
     SpotifyResult r{};
     r.type = SpotifyResult::Type::Error;
     strncpy(r.message, "Rate limited", sizeof(r.message) - 1);
     publishResult(r);
-    _rateLimitUntilMs = millis() + (unsigned long)(waitSec > 0 ? waitSec : RATE_LIMIT_DEFAULT_S) * 1000UL;
 }
 
 int SpotifyClient::doPut(const String& url) {
@@ -179,7 +196,7 @@ int SpotifyClient::doPut(const String& url) {
     return code;
 }
 
-void SpotifyClient::_doFetch() {
+void SpotifyClient::_doFetch(bool retried) {
     WiFiClientSecure client;
     client.setInsecure();
     client.setTimeout(5000);
@@ -194,8 +211,8 @@ void SpotifyClient::_doFetch() {
 
     if (httpCode == HTTP_UNAUTHORIZED) {
         https.end();
-        if (refreshAccessToken()) {
-            _doFetch();
+        if (!retried && refreshAccessToken()) {
+            _doFetch(true);
         } else {
             SpotifyResult r{};
             r.type = SpotifyResult::Type::Error;
@@ -211,6 +228,8 @@ void SpotifyClient::_doFetch() {
         handleRateLimit(wait);
         return;
     }
+
+    if (httpCode == HTTP_OK || httpCode == HTTP_NO_CONTENT) clearRateLimitBackoff();
 
     if (httpCode == HTTP_OK) {
         JsonDocument filter;
@@ -251,10 +270,10 @@ void SpotifyClient::_doFetch() {
         if (artist)  strncpy(result.artist,  artist,  sizeof(result.artist)  - 1);
         if (track)   strncpy(result.track,   track,   sizeof(result.track)   - 1);
 
-        _isPlaying      = result.isPlaying;
-        _volume         = volume;
+        _isPlaying         = result.isPlaying;
+        _volume            = volume;
         if (_volumeChangeAt == 0) _targetVolume = volume;
-        _supportsVolume = supportsVolume;
+        _supportsVolume    = supportsVolume;
 
         publishResult(result);
 
@@ -279,6 +298,7 @@ void SpotifyClient::_doToggle() {
     const int httpCode = doPut(_isPlaying ? PAUSE_URL : PLAY_URL);
     if (httpCode == HTTP_TOO_MANY_REQS) { handleRateLimit(_lastRetryAfter); return; }
     if (httpCode == HTTP_NO_CONTENT || httpCode == HTTP_OK) {
+        clearRateLimitBackoff();
         _isPlaying = !_isPlaying;
         SpotifyResult r{};
         r.type      = SpotifyResult::Type::PlayingStateChanged;
@@ -287,7 +307,7 @@ void SpotifyClient::_doToggle() {
     }
 }
 
-void SpotifyClient::_doSkip() {
+void SpotifyClient::_doSkip(bool retried) {
     WiFiClientSecure client;
     client.setInsecure();
     client.setTimeout(5000);
@@ -301,7 +321,7 @@ void SpotifyClient::_doSkip() {
 
     if (httpCode == HTTP_UNAUTHORIZED) {
         https.end();
-        if (refreshAccessToken()) _doSkip();
+        if (!retried && refreshAccessToken()) _doSkip(true);
         return;
     }
 
@@ -323,6 +343,7 @@ void SpotifyClient::_doSetVolume() {
     const int httpCode = doPut(VOLUME_URL + String(target));
     if (httpCode == HTTP_TOO_MANY_REQS) { handleRateLimit(_lastRetryAfter); return; }
     if (httpCode == HTTP_NO_CONTENT || httpCode == HTTP_OK) {
+        clearRateLimitBackoff();
         _volume = target;
         SpotifyResult r{};
         r.type   = SpotifyResult::Type::VolumeChanged;
