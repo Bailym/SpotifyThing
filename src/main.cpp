@@ -4,6 +4,8 @@
 #include "wifiManager.h"
 #include "spotify.h"
 #include "userControls.h"
+#include "usbConfig.h"
+#include "credentials.h"
 
 static const unsigned long FETCH_INTERVAL_MS = 5000;
 static const int MAIN_LOOP_DELAY_MS = 10;
@@ -16,6 +18,8 @@ void setup()
     Serial.begin(115200);
     initDefaultControls();
     displayInit();
+    credentialsLoad();
+    usbConfigInit();
     wifiConnect();
     displayMessage("Nothing playing...");
     spotifyClient.requestFetch();
@@ -35,6 +39,7 @@ void loop()
     spotifyClient.applyPendingResult();
     displayTick();
     userControlsTick();
+    usbConfigTick();
 
     if (millis() - lastFetch >= FETCH_INTERVAL_MS)
     {
