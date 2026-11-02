@@ -20,8 +20,22 @@ void setup()
     displayInit();
     credentialsLoad();
     usbConfigInit();
+
+    if (!credentialsHaveWifi())
+    {
+        displayMessage("Setup needed", "Add config.txt to USB");
+        return;
+    }
+
     wifiConnect();
-    displayMessage("Nothing playing...");
+    if (credentialsHaveSpotify())
+    {
+        displayMessage("Nothing playing...");
+    }
+    else
+    {
+        displayMessage("Spotify not set up", "Add config.txt to USB");
+    }
     spotifyClient.requestFetch();
 }
 
@@ -29,7 +43,7 @@ void loop()
 {
     static unsigned long lastFetch = 0;
 
-    if (WiFi.status() != WL_CONNECTED)
+    if (credentialsHaveWifi() && WiFi.status() != WL_CONNECTED)
     {
         wifiConnect();
         spotifyClient.forceDisplayRefresh();

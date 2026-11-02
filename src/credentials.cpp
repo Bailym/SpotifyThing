@@ -1,5 +1,4 @@
 #include "credentials.h"
-#include "secrets.h"
 #include <Arduino.h>
 #include <EEPROM.h>
 
@@ -53,16 +52,6 @@ static bool isRecordValid(const CredentialsRecord& record)
     return record.magic == RECORD_MAGIC && record.crc == calculateCrc32(record.credentials);
 }
 
-static void loadFirmwareDefaults()
-{
-    memset(&currentCredentials, 0, sizeof(currentCredentials));
-    strncpy(currentCredentials.wifiSsid, WIFI_SSID, sizeof(currentCredentials.wifiSsid) - 1);
-    strncpy(currentCredentials.wifiPassword, WIFI_PASS, sizeof(currentCredentials.wifiPassword) - 1);
-    strncpy(currentCredentials.spotifyClientId, SPOTIFY_CLIENT_ID, sizeof(currentCredentials.spotifyClientId) - 1);
-    strncpy(currentCredentials.spotifyClientSecret, SPOTIFY_CLIENT_SECRET, sizeof(currentCredentials.spotifyClientSecret) - 1);
-    strncpy(currentCredentials.spotifyRefreshToken, SPOTIFY_REFRESH_TOKEN, sizeof(currentCredentials.spotifyRefreshToken) - 1);
-}
-
 static void loadLastImportResult()
 {
     ImportResultRecord record;
@@ -95,7 +84,7 @@ void credentialsLoad()
     }
     else
     {
-        loadFirmwareDefaults();
+        memset(&currentCredentials, 0, sizeof(currentCredentials));
     }
 
     loadLastImportResult();
@@ -109,6 +98,18 @@ const Credentials& credentialsCurrent()
 bool credentialsAreStored()
 {
     return credentialsStored;
+}
+
+bool credentialsHaveWifi()
+{
+    return currentCredentials.wifiSsid[0] != '\0';
+}
+
+bool credentialsHaveSpotify()
+{
+    return currentCredentials.spotifyClientId[0] != '\0'
+        && currentCredentials.spotifyClientSecret[0] != '\0'
+        && currentCredentials.spotifyRefreshToken[0] != '\0';
 }
 
 ImportResult credentialsLastImportResult()

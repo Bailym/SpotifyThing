@@ -34,6 +34,8 @@ struct ImportResult
 void credentialsLoad();
 const Credentials& credentialsCurrent();
 bool credentialsAreStored();
+bool credentialsHaveWifi();
+bool credentialsHaveSpotify();
 ImportResult credentialsLastImportResult();
 bool credentialsSaveImport(const Credentials& credentials);
 void credentialsSaveRejectedImport(const ImportResult& result);

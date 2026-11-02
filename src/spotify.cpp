@@ -153,6 +153,7 @@ void SpotifyClient::decreaseVolume() {
 void SpotifyClient::tickCore1() {
     if (millis() - _rateLimitStartMs < _rateLimitDurationMs) return;
     if (WiFi.status() != WL_CONNECTED) return;
+    if (!credentialsHaveSpotify()) return;
     if (_accessToken.isEmpty() && !acquireInitialAccessToken()) return;
 
     if (_targetVolume != _volume && _volumeChangeAt > 0 &&

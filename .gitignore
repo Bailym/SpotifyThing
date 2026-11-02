@@ -5,6 +5,7 @@ build/
 .vscode/launch.json
 .vscode/ipch
 src/secrets.h
+config.txt
 *.env
 spotify_tokens.txt
 .venv

@@ -182,12 +182,12 @@ static String buildStatusText()
     const Credentials& credentials = credentialsCurrent();
     const ImportResult lastImport = credentialsLastImportResult();
 
-    String text = "WIFI_SSID: " + String(credentials.wifiSsid) + "\r\n";
+    String text = "WIFI_SSID: " + String(credentialsHaveWifi() ? credentials.wifiSsid : "not set") + "\r\n";
     text += "WIFI_PASS: " + describeSecretState(credentials.wifiPassword) + "\r\n";
     text += "SPOTIFY_CLIENT_ID: " + describeSecretState(credentials.spotifyClientId) + "\r\n";
     text += "SPOTIFY_CLIENT_SECRET: " + describeSecretState(credentials.spotifyClientSecret) + "\r\n";
     text += "SPOTIFY_REFRESH_TOKEN: " + describeSecretState(credentials.spotifyRefreshToken) + "\r\n";
-    text += "Credentials from: " + String(credentialsAreStored() ? "config.txt" : "firmware") + "\r\n";
+    text += "Stored credentials: " + String(credentialsAreStored() ? "yes" : "no") + "\r\n";
     text += "Last import: " + String(describeImportOutcome(lastImport.outcome));
     if (lastImport.lineNumber > 0)
     {

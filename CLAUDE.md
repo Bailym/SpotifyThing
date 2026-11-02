@@ -25,10 +25,11 @@ A Raspberry Pi Pico W project that displays the currently playing Spotify track 
 src/
 ├── main.cpp              # setup() and loop() only
 ├── display.h/cpp         # SH1106 init, message rendering, scroll logic
-├── wifi_manager.h/cpp    # WiFi connection
+├── wifiManager.h/cpp     # WiFi connection
 ├── spotify.h/cpp         # Spotify API client (fetch, token refresh, play/pause, skip, volume)
 ├── userControls.h/cpp    # Encoder input, button gesture detection (single/double press), rotation
-└── secrets.h             # Credentials (gitignored — copy from secrets.h.example)
+├── credentials.h/cpp     # Credential storage in the EEPROM flash sector (CRC-checked record)
+└── usbConfig.h/cpp       # USB drive, config.txt import and validation, status.txt
 lib/
 └── ky-040/               # KY-040 encoder driver (polling via repeating timer)
 ```
@@ -39,7 +40,7 @@ lib/
 - Fetches the currently playing track from the Spotify API every 5 seconds
 - Only updates the display when the track ID changes — avoids unnecessary redraws and scroll resets
 - Retains the last track on screen when nothing is playing
-- Automatically refreshes the Spotify access token on 401 responses, retrying the request at most once (`_doFetch()` / `_doSkip()` take a `retried` flag); `refreshAccessToken()` rejects a response with a missing or empty `access_token`
+- Acquires the Spotify access token at boot from the stored refresh token (`acquireInitialAccessToken()`), and automatically refreshes it on 401 responses, retrying the request at most once (`_doFetch()` / `_doSkip()` take a `retried` flag); `refreshAccessToken()` rejects a response with a missing or empty `access_token`
 - Backs off on 429 responses with an exponential rate-limit window — no Spotify calls are made while it is open (see [Rate Limit Handling](#rate-limit-handling))
 - Horizontal scrolling for artist/track names that exceed the display width, with configurable pause at each end
 - Encoder button single press: toggle play/pause (fetches current state first to avoid stale toggle)
@@ -75,24 +76,45 @@ All Spotify HTTP calls run on **Core 1**, leaving **Core 0** free to handle disp
 - **`SpotifyResult` uses `char[]` buffers** (not `String`) to avoid heap allocation races across cores.
 - **Display functions are only ever called from Core 0** — Core 1 only writes data; Core 0 applies it.
 
-## Secrets Setup
+## Device Configuration
 
-Copy `src/secrets.h.example` to `src/secrets.h` and fill in your credentials:
+Credentials are not compiled in. With the firmware running, create `config.txt` in the root of the Pico's USB drive, then eject it. See `config.txt.example`:
 
-```c
-#define WIFI_SSID             "your-ssid"
-#define WIFI_PASS             "your-password"
-#define SPOTIFY_CLIENT_ID     "from Spotify Developer Dashboard"
-#define SPOTIFY_CLIENT_SECRET "from Spotify Developer Dashboard"
-#define SPOTIFY_ACCESS_TOKEN  "initial access token"
-#define SPOTIFY_REFRESH_TOKEN "refresh token"
+```
+WIFI_SSID=your-ssid
+WIFI_PASS=your-password
+SPOTIFY_CLIENT_ID=from Spotify Developer Dashboard
+SPOTIFY_CLIENT_SECRET=from Spotify Developer Dashboard
+SPOTIFY_REFRESH_TOKEN=from get_spotify_token.py
 ```
 
-Client ID and secret are found in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard). Access and refresh tokens must be obtained via the OAuth 2.0 Authorization Code flow before flashing.
+Include only the keys being changed. The access token is not configured; the device fetches it at boot. The README has the user-facing steps, format and length rules.
+
+## USB Config Design
+
+`board_build.filesystem_size = 256k` in `platformio.ini` reserves the USB drive region. `usbConfig.h/cpp` owns the drive (FatFS + FatFSUSB, about 240 KB usable); `credentials.h/cpp` owns the stored record.
+
+The unplug callback only sets a flag. `usbConfigTick()` on Core 0 then:
+
+1. Refuses host access through `driveReady`
+2. Reads `config.txt` and merges it line by line into a copy of the current credentials — any bad line rejects the whole file, so nothing changes
+3. Commits the merged record, or only the rejection reason, to EEPROM
+4. Shows `Config saved` or `Config rejected`, then `Restarting...`
+5. Raw-erases the whole drive region, whatever the outcome, and calls `rp2040.reboot()`
+
+`usbConfigInit()` runs the same import at boot before USB starts, so a file that survived a pulled cable is still imported. The next boot re-formats the drive and writes `status.txt`, only if its content changed, to limit flash wear. `status.txt` never contains secret values.
+
+### Design constraints
+
+- **Reboot instead of applying live** — avoids syncing credentials to Core 1 and resetting WiFi, the access token and the drive state.
+- **Raw erase instead of deleting the file** — a FAT delete or `FatFS.format()` can leave the secret readable in flash.
+- **Plain text in the EEPROM sector** — credentials live in the 4 KB EEPROM flash sector, outside the drive region, so they are not readable through the drive and survive firmware uploads. Anyone with USB access can still read flash using picotool. Encrypting would not help: the RP2040 has no secure storage, so the key would sit in the same flash.
+- **Long WiFi retries delay the import** — `wifiConnect()` blocks Core 0, so an import can wait up to about 9 s.
+- **Unconfigured states stay idle** — with no WiFi set, the OLED shows `Setup needed` / `Add config.txt to USB`. With Spotify keys missing, it shows `Spotify not set up` / `Add config.txt to USB`. The drive and display keep working.
 
 ## Flashing
 
-Put the Pico W into BOOTSEL mode (hold BOOTSEL while plugging in USB), then run the PlatformIO upload task. The `upload_port` in `platformio.ini` may need updating to match the drive letter assigned by Windows.
+Run `pio run -t upload --upload-port COMx`, where `COMx` is the Pico's serial port. A running firmware reboots itself into BOOTSEL, so BOOTSEL is only needed for the first flash or a crashed device (hold BOOTSEL while plugging in USB). The `upload_port = D:\` in `platformio.ini` is stale, so use the command-line port.
 
 ## Possible Future Features
 
