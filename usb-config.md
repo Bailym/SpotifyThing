@@ -52,7 +52,7 @@ The next boot re-formats the drive, writes `status.txt`, and connects with the n
 **Not yet:** parsing, EEPROM, or any change to where credentials come from.
 
 ### Phase 2 — Change WiFi from `config.txt`
-**Status:** implemented. Wrong then right password import passed, and `config.txt` was removed. Not verified: sentinel flash dump.
+**Status:** implemented. Wrong then right password import passed, and `config.txt` was removed. A flash dump showed test sentinels and the WiFi password absent from the drive region. Stored credentials survived a reflash.
 **Deliverable:** dropping `WIFI_SSID` and `WIFI_PASS` and ejecting makes the device reboot onto the new network. `secrets.h` remains the fallback when nothing is stored.
 **Verify:**
 - Set a wrong password: OLED shows `WiFi failed`. Set the right one: it connects.
@@ -66,6 +66,7 @@ The next boot re-formats the drive, writes `status.txt`, and connects with the n
 **Not yet:** Spotify keys, `status.txt`, and any validation beyond a non-empty SSID.
 
 ### Phase 3 — Validation and `status.txt`
+**Status:** implemented. Five rejected-file cases passed, with no sentinel in `status.txt`. Not verified: corrupt EEPROM CRC, rejection message on the OLED.
 **Deliverable:** a bad file changes nothing and explains why. The drive shows the current state without secrets.
 **Verify:**
 - Try a 7-character password, an unknown key, a line with no `=`, and an oversized file. Stored values stay unchanged, the OLED shows `Config rejected`, and `status.txt` names the problem.

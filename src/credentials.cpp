@@ -8,6 +8,9 @@ static constexpr uint32_t CRC32_INITIAL = 0xFFFFFFFF;
 static constexpr uint32_t CRC32_POLYNOMIAL = 0xEDB88320;
 static constexpr int BITS_PER_BYTE = 8;
 static constexpr int RECORD_EEPROM_ADDRESS = 0;
+static constexpr uint32_t IMPORT_RESULT_MAGIC = 0x494D5031;
+static constexpr int IMPORT_RESULT_EEPROM_ADDRESS = 128;
+static constexpr size_t EEPROM_BYTES = 256;
 
 struct CredentialsRecord
 {
@@ -16,7 +19,15 @@ struct CredentialsRecord
     Credentials credentials;
 };
 
+struct ImportResultRecord
+{
+    uint32_t magic;
+    ImportResult result;
+};
+
 static Credentials currentCredentials;
+static bool credentialsStored = false;
+static ImportResult lastImportResult = {ImportOutcome::None, 0};
 
 static uint32_t calculateCrc32(const Credentials& credentials)
 {
@@ -49,14 +60,33 @@ static void loadFirmwareDefaults()
     strncpy(currentCredentials.wifiPassword, WIFI_PASS, sizeof(currentCredentials.wifiPassword) - 1);
 }
 
+static void loadLastImportResult()
+{
+    ImportResultRecord record;
+    EEPROM.get(IMPORT_RESULT_EEPROM_ADDRESS, record);
+    if (record.magic == IMPORT_RESULT_MAGIC)
+    {
+        lastImportResult = record.result;
+    }
+}
+
+static void stageImportResult(const ImportResult& result)
+{
+    ImportResultRecord record;
+    record.magic = IMPORT_RESULT_MAGIC;
+    record.result = result;
+    EEPROM.put(IMPORT_RESULT_EEPROM_ADDRESS, record);
+}
+
 void credentialsLoad()
 {
-    EEPROM.begin(sizeof(CredentialsRecord));
+    EEPROM.begin(EEPROM_BYTES);
 
     CredentialsRecord record;
     EEPROM.get(RECORD_EEPROM_ADDRESS, record);
 
-    if (isRecordValid(record))
+    credentialsStored = isRecordValid(record);
+    if (credentialsStored)
     {
         currentCredentials = record.credentials;
     }
@@ -64,6 +94,8 @@ void credentialsLoad()
     {
         loadFirmwareDefaults();
     }
+
+    loadLastImportResult();
 }
 
 const Credentials& credentialsCurrent()
@@ -71,7 +103,17 @@ const Credentials& credentialsCurrent()
     return currentCredentials;
 }
 
-bool credentialsSave(const Credentials& credentials)
+bool credentialsAreStored()
+{
+    return credentialsStored;
+}
+
+ImportResult credentialsLastImportResult()
+{
+    return lastImportResult;
+}
+
+bool credentialsSaveImport(const Credentials& credentials)
 {
     CredentialsRecord record;
     record.magic = RECORD_MAGIC;
@@ -79,5 +121,12 @@ bool credentialsSave(const Credentials& credentials)
     record.credentials = credentials;
 
     EEPROM.put(RECORD_EEPROM_ADDRESS, record);
+    stageImportResult({ImportOutcome::Saved, 0});
     return EEPROM.commit();
+}
+
+void credentialsSaveRejectedImport(const ImportResult& result)
+{
+    stageImportResult(result);
+    EEPROM.commit();
 }

@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 
 struct Credentials
 {
@@ -6,6 +7,29 @@ struct Credentials
     char wifiPassword[64];
 };
 
+enum class ImportOutcome : uint8_t
+{
+    None,
+    Saved,
+    FileUnreadable,
+    FileTooLarge,
+    MalformedLine,
+    UnknownKey,
+    InvalidSsid,
+    InvalidPassword,
+    NoRecognisedKeys,
+    StorageWriteFailed
+};
+
+struct ImportResult
+{
+    ImportOutcome outcome;
+    uint16_t lineNumber;
+};
+
 void credentialsLoad();
 const Credentials& credentialsCurrent();
-bool credentialsSave(const Credentials& credentials);
+bool credentialsAreStored();
+ImportResult credentialsLastImportResult();
+bool credentialsSaveImport(const Credentials& credentials);
+void credentialsSaveRejectedImport(const ImportResult& result);
