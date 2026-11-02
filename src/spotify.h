@@ -33,6 +33,10 @@ private:
     String        _accessToken;
     String        _lastTrackId;
     unsigned long _idleSince = 0;
+    unsigned long _lastInitialAuthAttemptMs = 0;
+    bool          _initialAuthAttempted = false;
+    unsigned long _initialAuthRetryDelayMs;
+    bool          _lastTokenRequestReachedServer = false;
     bool          _isPlaying = false;
     unsigned long _rateLimitStartMs = 0;
     unsigned long _rateLimitDurationMs = 0;
@@ -51,6 +55,7 @@ private:
     mutex_t        _mutex;
 
     bool refreshAccessToken();
+    bool acquireInitialAccessToken();
     int  doPut(const String& url);
     void publishResult(const SpotifyResult& r);
     void handleRateLimit(int waitSec);

@@ -56,6 +56,15 @@ static ImportOutcome applyWifiPassword(Credentials& credentials, const String& v
     return LINE_ACCEPTED;
 }
 
+static ImportOutcome applySpotifyValue(char* destination, size_t capacity, const String& value)
+{
+    const bool lengthIsValid = value.length() > 0 && value.length() < capacity;
+    if (!lengthIsValid) return ImportOutcome::InvalidSpotifyValue;
+
+    copyValue(destination, capacity, value);
+    return LINE_ACCEPTED;
+}
+
 static ImportOutcome applyConfigLine(Credentials& credentials, const String& line)
 {
     const int separator = line.indexOf('=');
@@ -66,6 +75,9 @@ static ImportOutcome applyConfigLine(Credentials& credentials, const String& lin
 
     if (key == "WIFI_SSID") return applyWifiSsid(credentials, value);
     if (key == "WIFI_PASS") return applyWifiPassword(credentials, value);
+    if (key == "SPOTIFY_CLIENT_ID") return applySpotifyValue(credentials.spotifyClientId, sizeof(credentials.spotifyClientId), value);
+    if (key == "SPOTIFY_CLIENT_SECRET") return applySpotifyValue(credentials.spotifyClientSecret, sizeof(credentials.spotifyClientSecret), value);
+    if (key == "SPOTIFY_REFRESH_TOKEN") return applySpotifyValue(credentials.spotifyRefreshToken, sizeof(credentials.spotifyRefreshToken), value);
     return ImportOutcome::UnknownKey;
 }
 
@@ -155,8 +167,14 @@ static const char* describeImportOutcome(ImportOutcome outcome)
         case ImportOutcome::InvalidPassword:    return "rejected: WIFI_PASS must be empty or 8-63 bytes";
         case ImportOutcome::NoRecognisedKeys:   return "rejected: no settings found";
         case ImportOutcome::StorageWriteFailed: return "rejected: could not save settings";
+        case ImportOutcome::InvalidSpotifyValue: return "rejected: Spotify value is empty or too long";
     }
     return "unknown";
+}
+
+static String describeSecretState(const char* value)
+{
+    return value[0] != '\0' ? "set" : "not set";
 }
 
 static String buildStatusText()
@@ -165,7 +183,10 @@ static String buildStatusText()
     const ImportResult lastImport = credentialsLastImportResult();
 
     String text = "WIFI_SSID: " + String(credentials.wifiSsid) + "\r\n";
-    text += "WIFI_PASS: " + String(credentials.wifiPassword[0] != '\0' ? "set" : "not set") + "\r\n";
+    text += "WIFI_PASS: " + describeSecretState(credentials.wifiPassword) + "\r\n";
+    text += "SPOTIFY_CLIENT_ID: " + describeSecretState(credentials.spotifyClientId) + "\r\n";
+    text += "SPOTIFY_CLIENT_SECRET: " + describeSecretState(credentials.spotifyClientSecret) + "\r\n";
+    text += "SPOTIFY_REFRESH_TOKEN: " + describeSecretState(credentials.spotifyRefreshToken) + "\r\n";
     text += "Credentials from: " + String(credentialsAreStored() ? "config.txt" : "firmware") + "\r\n";
     text += "Last import: " + String(describeImportOutcome(lastImport.outcome));
     if (lastImport.lineNumber > 0)

@@ -1,6 +1,6 @@
 #include "spotify.h"
 #include "display.h"
-#include "secrets.h"
+#include "credentials.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -24,12 +24,14 @@ static constexpr int VOLUME_CHANGE_STEP       = 10;
 static constexpr unsigned long IDLE_CLOCK_TIMEOUT_MS      = 10UL * 60UL * 1000UL;
 static constexpr int           SPOTIFY_SKIP_PROPAGATION_MS = 600;
 static constexpr unsigned long VOLUME_DEBOUNCE_MS          = 300;
+static constexpr unsigned long INITIAL_AUTH_RETRY_MIN_MS   = 5000;
+static constexpr unsigned long INITIAL_AUTH_RETRY_MAX_MS   = 60000;
 
 static constexpr const char* b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 
 SpotifyClient::SpotifyClient()
-    : _accessToken(SPOTIFY_ACCESS_TOKEN), _nextRateLimitBackoffS(RATE_LIMIT_DEFAULT_S) {
+    : _nextRateLimitBackoffS(RATE_LIMIT_DEFAULT_S), _initialAuthRetryDelayMs(INITIAL_AUTH_RETRY_MIN_MS) {
     mutex_init(&_mutex);
 }
 
@@ -69,11 +71,14 @@ bool SpotifyClient::refreshAccessToken() {
     HTTPClient https;
     https.begin(wifiClient, TOKEN_URL);
     https.addHeader("Content-Type", "application/x-www-form-urlencoded");
-    https.addHeader("Authorization", "Basic " + base64Encode(String(SPOTIFY_CLIENT_ID) + ":" + SPOTIFY_CLIENT_SECRET));
+    const Credentials& credentials = credentialsCurrent();
+    https.addHeader("Authorization", "Basic " + base64Encode(String(credentials.spotifyClientId) + ":" + credentials.spotifyClientSecret));
 
-    const int httpCode = https.POST("grant_type=refresh_token&refresh_token=" SPOTIFY_REFRESH_TOKEN);
+    const int httpCode = https.POST(String("grant_type=refresh_token&refresh_token=") + credentials.spotifyRefreshToken);
+    _lastTokenRequestReachedServer = httpCode > 0;
 
     if (httpCode != HTTP_OK) {
+        Serial.println("Spotify: token request returned " + String(httpCode));
         https.end();
         return false;
     }
@@ -89,6 +94,29 @@ bool SpotifyClient::refreshAccessToken() {
 
     _accessToken = accessToken;
     return true;
+}
+
+bool SpotifyClient::acquireInitialAccessToken() {
+    const bool retryDelayRunning = _initialAuthAttempted && millis() - _lastInitialAuthAttemptMs < _initialAuthRetryDelayMs;
+    if (retryDelayRunning) return false;
+
+    _initialAuthAttempted = true;
+    _lastInitialAuthAttemptMs = millis();
+
+    if (refreshAccessToken()) {
+        Serial.println("Spotify: access token acquired");
+        return true;
+    }
+
+    if (!_lastTokenRequestReachedServer) return false;
+
+    Serial.println("Spotify: auth failed");
+    _initialAuthRetryDelayMs = min(_initialAuthRetryDelayMs * 2, INITIAL_AUTH_RETRY_MAX_MS);
+    SpotifyResult r{};
+    r.type = SpotifyResult::Type::Error;
+    strncpy(r.message, "Auth failed", sizeof(r.message) - 1);
+    publishResult(r);
+    return false;
 }
 
 void SpotifyClient::forceDisplayRefresh() {
@@ -125,6 +153,7 @@ void SpotifyClient::decreaseVolume() {
 void SpotifyClient::tickCore1() {
     if (millis() - _rateLimitStartMs < _rateLimitDurationMs) return;
     if (WiFi.status() != WL_CONNECTED) return;
+    if (_accessToken.isEmpty() && !acquireInitialAccessToken()) return;
 
     if (_targetVolume != _volume && _volumeChangeAt > 0 &&
         millis() - _volumeChangeAt >= VOLUME_DEBOUNCE_MS) {

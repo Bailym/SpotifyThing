@@ -5,6 +5,9 @@ struct Credentials
 {
     char wifiSsid[33];
     char wifiPassword[64];
+    char spotifyClientId[65];
+    char spotifyClientSecret[65];
+    char spotifyRefreshToken[512];
 };
 
 enum class ImportOutcome : uint8_t
@@ -18,7 +21,8 @@ enum class ImportOutcome : uint8_t
     InvalidSsid,
     InvalidPassword,
     NoRecognisedKeys,
-    StorageWriteFailed
+    StorageWriteFailed,
+    InvalidSpotifyValue
 };
 
 struct ImportResult

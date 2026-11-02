@@ -79,12 +79,13 @@ The next boot re-formats the drive, writes `status.txt`, and connects with the n
 **Not yet:** Spotify keys are accepted by the parser only once Phase 4 uses them.
 
 ### Phase 4 — Spotify credentials from `config.txt`
+**Status:** implemented. Serial confirmed the token is acquired at boot from stored values, a wrong secret returns 400 with `auth failed` and backoff, and restoring it recovers. Not verified: a newly generated refresh token, the OLED error, and playback after import.
 **Deliverable:** client ID, secret and refresh token can be changed without reflashing, and the device fetches its own access token at boot.
 **Verify:**
 - Generate a new refresh token with `get_spotify_token.py`, drop it in: playback appears after reboot, without an initial access token.
 - Set a wrong client secret: OLED shows a Spotify auth error, requests are not retried in a tight loop, and fixing the file recovers it.
 **Work:**
-- `spotify.cpp`: build the Basic header and refresh body at runtime. Start with an empty `_accessToken` and refresh in `tickCore1()` before the first request, since the existing retry only handles 401 and an empty bearer token may not return one. Add a retry delay after failures.
+- `spotify.cpp`: build the Basic header and refresh body at runtime. Start with an empty `_accessToken` and refresh in `tickCore1()` before the first request, since the existing retry only handles 401 and an empty bearer token may not return one. Retry quietly at 5 s when the request never reaches Spotify, because the first request after boot returned `-1` in most tests. Show the error and back off from 5 s to 60 s when Spotify rejects it.
 - Extend the parser and `status.txt` with the three keys.
 **Not yet:** `secrets.h` remains the fallback.
 

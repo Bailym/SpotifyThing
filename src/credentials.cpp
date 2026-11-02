@@ -3,14 +3,14 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
-static constexpr uint32_t RECORD_MAGIC = 0x43524431;
+static constexpr uint32_t RECORD_MAGIC = 0x43524432;
 static constexpr uint32_t CRC32_INITIAL = 0xFFFFFFFF;
 static constexpr uint32_t CRC32_POLYNOMIAL = 0xEDB88320;
 static constexpr int BITS_PER_BYTE = 8;
 static constexpr int RECORD_EEPROM_ADDRESS = 0;
 static constexpr uint32_t IMPORT_RESULT_MAGIC = 0x494D5031;
-static constexpr int IMPORT_RESULT_EEPROM_ADDRESS = 128;
-static constexpr size_t EEPROM_BYTES = 256;
+static constexpr int IMPORT_RESULT_EEPROM_ADDRESS = 1008;
+static constexpr size_t EEPROM_BYTES = 1024;
 
 struct CredentialsRecord
 {
@@ -58,6 +58,9 @@ static void loadFirmwareDefaults()
     memset(&currentCredentials, 0, sizeof(currentCredentials));
     strncpy(currentCredentials.wifiSsid, WIFI_SSID, sizeof(currentCredentials.wifiSsid) - 1);
     strncpy(currentCredentials.wifiPassword, WIFI_PASS, sizeof(currentCredentials.wifiPassword) - 1);
+    strncpy(currentCredentials.spotifyClientId, SPOTIFY_CLIENT_ID, sizeof(currentCredentials.spotifyClientId) - 1);
+    strncpy(currentCredentials.spotifyClientSecret, SPOTIFY_CLIENT_SECRET, sizeof(currentCredentials.spotifyClientSecret) - 1);
+    strncpy(currentCredentials.spotifyRefreshToken, SPOTIFY_REFRESH_TOKEN, sizeof(currentCredentials.spotifyRefreshToken) - 1);
 }
 
 static void loadLastImportResult()
